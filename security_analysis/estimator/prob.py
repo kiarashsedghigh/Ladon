@@ -58,7 +58,7 @@ def conditional_chi_squared(d1, d2, lt, l2):
 
     PE2 = D2(l2)
     # In large dim, we can get underflow leading to NaN
-    # When this happens, assume lifting is successfully (underestimating security)
+    # When this happens, assume lifting is successfully (underestimating security_analysis)
     if PE2==0:
         raise ValueError("Numerical underflow in conditional_chi_squared")
 
@@ -100,11 +100,11 @@ def mitm_babai_probability(r, stddev, fast=False):
 
     :params r: the squared GSO lengths
     :params stddev: the std.dev of the error_term_analyzer distribution
-    :param fast: toggle for setting p = 1 (faster, but underestimates security)
+    :param fast: toggle for setting p = 1 (faster, but underestimates security_analysis)
     :return: probability for the mitm process
     """
     if fast:
-        # overestimate the probability -> underestimate security
+        # overestimate the probability -> underestimate security_analysis
         return 1
 
     # Note: `r` contains *square norms*, so convert to non-square norms.

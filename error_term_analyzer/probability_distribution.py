@@ -16,19 +16,10 @@ from __future__ import annotations
 from typing import Dict, List, Union, Iterable, Optional, Literal
 from decimal import Decimal, getcontext
 import numpy as np
-import multiprocessing as mp
 
 # Set high precision for cryptographic applications
 # 100 decimal places provides extreme accuracy while maintaining performance
 getcontext().prec = 100
-
-__version__ = "2.0.0"
-__all__ = [
-    "ProbabilityDistribution",
-    "sample_binomial_distribution",
-    "sample_uniform_distribution",
-    "multiply_probability_distributions"
-]
 
 EPSILON = Decimal(10) ** -(getcontext().prec - 10)
 

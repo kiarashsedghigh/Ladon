@@ -314,7 +314,7 @@ TFHE1024 = LWEParameters(
     tag="TFHE1024",
 )
 
-# CONCRETE default parameter set for 128-bit security, chosen for
+# CONCRETE default parameter set for 128-bit security_analysis, chosen for
 # faster boolean circuit evalutation than the TFHE_LIB parameters.
 # With these parameters, the probability of error_term_analyzer is upper-bounded by 2^-25.
 # https://github.com/zama-ai/concrete/blob/4209e3366e8eb889e83720de3dc03b85778d3cec/concrete-boolean/src/parameters/mod.rs#L83
@@ -480,7 +480,7 @@ SEAL22_32768 = LWEParameters(
 # HElib
 # https://eprint.iacr.org/2017/047.pdf
 # Table 1, page 6
-# 80-bit security
+# 80-bit security_analysis
 
 HElib80_1024 = LWEParameters(
     n=1024,
@@ -506,7 +506,7 @@ HElib80_4096 = LWEParameters(
     tag="HElib80_4096",
 )
 
-# 120-bit security
+# 120-bit security_analysis
 
 HElib120_1024 = LWEParameters(
     n=1024,

@@ -1,15 +1,15 @@
 """
 Compression Error Analysis for Lattice-Based Cryptography.
 
-This module analyzes compression-decompression errors in schemes like ML-KEM (Kyber).
-Uses exact rational arithmetic via the prob_dist module for precise error_term_analyzer distribution
+This module analyzes compression-decompression errors in MLWE-based public-key encryption schemes.
+Uses exact rational arithmetic via the prob_dist (probability distribution) module for precise error_term_analyzer distribution
 computation.
 
 Key Features:
 - Exact error_term_analyzer distributions using Decimal arithmetic
 - Parallel processing support for large moduli
 - Unified compression function for any modulus reduction
-- ML-KEM/Kyber compatible (use p = 2^d for d-bit compression)
+- Compatible with MLWE-based PKE compression (use p = 2^d for d-bit compression)
 - Detailed statistical analysis
 """
 
@@ -21,52 +21,47 @@ from concurrent.futures import ProcessPoolExecutor
 from functools import partial
 import multiprocessing
 
-from error_term_analyzer.prob_dist import *
-
-__version__ = "1.0.0"
-__all__ = [
-    "compute_compression_error_distribution",
-]
+from error_term_analyzer.probability_distribution import *
 
 
 # =============================================================================
 # Core Compression Function
 # =============================================================================
 
-def compression_error(x: int, q: int, p: int) -> int:
+def _modulus_reduction_error(x: int, q: int, p: int) -> int:
     """
     Compute the compression-decompression error_term_analyzer for modulus reduction.
 
     Compresses x from Z_q to Z_p and back, computing the error_term_analyzer:
     Error = decompress(compress(x)) - x, centered in [-q/2, q/2).
 
-    Compression:   y = ⌈(p/q) * x⌋ mod p
-    Decompression: x' = ⌈(q/p) * y⌋
+    Compression:   y = ?(p/q) * x? mod p
+    Decompression: x' = ?(q/p) * y?
     Error:         e = x' - x (centered)
 
     Args:
         x: Original value in Z_q.
-        q: Source modulus (typically prime, e.g., 3329 for ML-KEM).
+        q: Source modulus (typically prime, e.g., 3329 in many MLWE-based schemes).
         p: Target modulus (typically 2^d for d-bit compression).
 
     Returns:
         Error value, centered in [-q/2, q/2).
 
     Examples:
-        >>> # ML-KEM compression of v component (dv=4, so p=2^4=16)
-        >>> compression_error(100, q=3329, p=16)
+        >>> # 4-bit compression of a ciphertext component (d=4, so p=2^4=16)
+        >>> _modulus_reduction_error(100, q=3329, p=16)
         -5
 
-        >>> # ML-KEM compression of u component (du=10, so p=2^10=1024)
-        >>> compression_error(100, q=3329, p=1024)
+        >>> # 10-bit compression of a ciphertext component (d=10, so p=2^10=1024)
+        >>> _modulus_reduction_error(100, q=3329, p=1024)
         0
 
         >>> # General modulus reduction
-        >>> compression_error(1000, q=3329, p=256)
+        >>> _modulus_reduction_error(1000, q=3329, p=256)
         -14
 
     Note:
-        - For ML-KEM: p = 2^du for u component, p = 2^dv for v component
+        - For d-bit compression, set p = 2^d
         - The error_term_analyzer distribution depends on both q and p
         - Centering ensures error_term_analyzer is in [-q/2, q/2) for proper analysis
     """
@@ -92,7 +87,7 @@ def compression_error(x: int, q: int, p: int) -> int:
 # Error Distribution Computation
 # =============================================================================
 
-def _compute_errors_batch(x_values: range, q: int, p: int) -> Dict[int, int]:
+def _count_modulus_reduction_errors_batch(x_values: range, q: int, p: int) -> Dict[int, int]:
     """
     Compute compression errors for a batch of x values.
 
@@ -109,7 +104,7 @@ def _compute_errors_batch(x_values: range, q: int, p: int) -> Dict[int, int]:
     """
     error_counts = defaultdict(int)
     for x in x_values:
-        error = compression_error(x, q, p)
+        error = _modulus_reduction_error(x, q, p)
         error_counts[error] += 1
     return dict(error_counts)
 
@@ -134,7 +129,7 @@ def _merge_error_counts(count_dicts: list[Dict[int, int]]) -> Dict[int, int]:
     return dict(merged)
 
 
-def compute_compression_error_distribution(
+def compute_modulus_reduction_error_distribution(
         q: int,
         p: int,
         use_parallel: Optional[bool] = None,
@@ -157,13 +152,13 @@ def compute_compression_error_distribution(
         ProbabilityDistribution of compression errors with exact probabilities.
 
     Examples:
-        >>> # ML-KEM parameters for e' (v component, dv=4)
-        >>> e_prime_dist = compute_compression_error_distribution(q=3329, p=2**4)
+        >>> # Parameters for a 4-bit compression error distribution
+        >>> e_prime_dist = compute_modulus_reduction_error_distribution(q=3329, p=2**4)
         >>> e_prime_dist.mean()
         Decimal(0/ 1)
 
-        >>> # ML-KEM parameters for e'' (u component, du=10)
-        >>> e_double_prime_dist = compute_compression_error_distribution(q=3329, p=2**10)
+        >>> # Parameters for a 10-bit compression error distribution
+        >>> e_double_prime_dist = compute_modulus_reduction_error_distribution(q=3329, p=2**10)
         >>> e_double_prime_dist.support_size
         3
 
@@ -180,7 +175,7 @@ def compute_compression_error_distribution(
         # Single-threaded version for small q
         error_counts = defaultdict(int)
         for x in range(q):
-            error = compression_error(x, q, p)
+            error = _modulus_reduction_error(x, q, p)
             error_counts[error] += 1
     else:
         # Parallel version for large q
@@ -196,7 +191,7 @@ def compute_compression_error_distribution(
         # Use ProcessPoolExecutor for CPU-bound work
         with ProcessPoolExecutor(max_workers=num_workers) as executor:
             # Create partial function with fixed q and p
-            compute_batch = partial(_compute_errors_batch, q=q, p=p)
+            compute_batch = partial(_count_modulus_reduction_errors_batch, q=q, p=p)
 
             # Map the work across processes
             count_dicts = list(executor.map(compute_batch, x_ranges))
