@@ -1,0 +1,6 @@
+[workspace]
+members = ["ml-kem", "test_pke"]
+resolver = "2"
+
+[workspace.lints]
+# (empty is fine, or copy from upstream)
