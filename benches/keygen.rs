@@ -8,12 +8,14 @@ use Moiragus::{kpke, params::*};
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    println!("HEELO\n");
-    let paramset = args.get(1).map(|s| s.as_str()).unwrap_or("ML-KEM-512");
-    let iterations: usize = args
-        .get(2)
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(1000);
+
+    let paramset = args
+        .iter()
+        .map(|s| s.as_str())
+        .find(|s| matches!(*s, "ML-KEM-512" | "ML-KEM-768" | "ML-KEM-1024"))
+        .unwrap_or("ML-KEM-512");
+    let iterations: usize = 1000;
+
 
     match paramset {
         "ML-KEM-512" => bench_keygen::<MlKem512>("ML-KEM-512", iterations),
