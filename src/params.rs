@@ -15,6 +15,7 @@ pub const Q32: u32 = 8380417;
 pub const Q64: u64 = 8380417;
 pub const ZETA: u32 = 3_073_009;      // was u16 = 17 — primitive 512th root of unity mod 8380417
 
+use std::fmt;
 
 
 
@@ -30,14 +31,28 @@ pub trait MlKemParams {
     const D_V: usize;
 }
 
+
 pub struct MlKem512;
 impl MlKemParams for MlKem512 {
-    const K: usize = 2;
-    const ETA_1: usize = 3;
+    const K: usize = 4;
+    const ETA_1: usize = 2;
     const ETA_2: usize = 2;
-    const D_U: usize = 21;
+    const D_U: usize = 22;
     const D_V: usize = 18;
 }
+
+impl fmt::Debug for MlKem512 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("MlKem512")
+            .field("K", &<MlKem512 as MlKemParams>::K)
+            .field("ETA_1", &<MlKem512 as MlKemParams>::ETA_1)
+            .field("ETA_2", &<MlKem512 as MlKemParams>::ETA_2)
+            .field("D_U", &<MlKem512 as MlKemParams>::D_U)
+            .field("D_V", &<MlKem512 as MlKemParams>::D_V)
+            .finish()
+    }
+}
+
 
 pub struct MlKem768;
 impl MlKemParams for MlKem768 {

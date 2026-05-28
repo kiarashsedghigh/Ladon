@@ -21,6 +21,8 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     let paramset = args.get(1).map(|s| s.as_str()).unwrap_or("ML-KEM-512");
 
+    println!("=== {:#?} ===",MlKem512);
+
     match paramset {
         "ML-KEM-512" => pke_round_trip::<MlKem512>("ML-KEM-512"),
         "ML-KEM-768" => pke_round_trip::<MlKem768>("ML-KEM-768"),

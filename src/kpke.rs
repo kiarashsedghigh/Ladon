@@ -1,4 +1,3 @@
-use std::process::exit;
 use crate::crypt;
 use crate::params::*;
 use crate::ring::*;

@@ -15,3 +15,8 @@ pub mod kpke;
 mod seeded_test;
 
 pub mod mlkem;
+pub mod shamir;
+pub mod shamir_ring;
+pub mod dealer;
+pub mod party;
+pub mod threshold;
