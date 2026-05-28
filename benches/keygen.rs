@@ -42,13 +42,13 @@ where
 
     // Warmup
     for _ in 0..100 {
-        black_box(kpke::key_gen::<PARAMS>());
+        black_box(kpke::key_gen_2k::<PARAMS>());
     }
 
     let start = Instant::now();
 
     for _ in 0..iterations {
-        black_box(kpke::key_gen::<PARAMS>());
+        black_box(kpke::key_gen_2k::<PARAMS>());
     }
 
     let total = start.elapsed();

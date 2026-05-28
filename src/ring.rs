@@ -306,7 +306,6 @@ impl<const D: usize> Compressed<D, Ring> {
             ring.data[i] = (((ring.data[i] as u64) * params::Q64
                 + Compressed::<D, Ring>::POW_HALF as u64) >> D) as u32;
         }
-
         ring
     }
 }

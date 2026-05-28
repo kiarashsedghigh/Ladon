@@ -37,8 +37,8 @@ impl MlKemParams for MlKem512 {
     const K: usize = 4;
     const ETA_1: usize = 2;
     const ETA_2: usize = 2;
-    const D_U: usize = 22;
-    const D_V: usize = 18;
+    const D_U: usize = 18;
+    const D_V: usize = 16;
 }
 
 impl fmt::Debug for MlKem512 {
