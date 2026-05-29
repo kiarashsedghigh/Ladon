@@ -15,4 +15,9 @@ pub mod negacyclic;
 #[cfg(test)]
 mod seeded_test;
 pub mod mlkem;
+pub mod additive_2k;
+pub mod additive_ring;
+pub mod dealer_spdz;
+pub mod party_spdz;
+pub mod threshold_decrypt;
 
