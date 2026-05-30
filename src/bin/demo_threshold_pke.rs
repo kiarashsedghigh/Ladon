@@ -30,11 +30,11 @@ use Moiragus::threshold::{assemble_parties, threshold_decrypt};
 // ===========================================================================
 // ====== DEMO PARAMETERS — edit these ======================================
 // ===========================================================================
-const N_PARTIES: usize = 7; // total parties the dealer shares to
-const THRESHOLD: usize = 5; // t : any t+1 parties can decrypt
+const N_PARTIES: usize = 11; // total parties the dealer shares to
+const THRESHOLD: usize = 3; // t : any t+1 parties can decrypt
 const P_PLAINTEXT: u64 = 2; // plaintext modulus (power of two); 2 = bit/coeff
 // Which parties form the active committee (0-based indices, need t+1 of them):
-const ACTIVE: &[usize] = &[0, 1, 2, 3, 4, 5, 6];
+const ACTIVE: &[usize] = &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 // Parameter set: MlKem512 (K=2), MlKem768 (K=3), or MlKem1024 (K=4).
 type PARAMS = MlKem512;
 // ===========================================================================
