@@ -8,7 +8,7 @@ Analysis toolkit for MLWE-based PKE schemes. Covers parameter selection, decrypt
 
 ```
 Moiragus/
-├── moiragus_base_pke.py             # Main script — full scheme analysis (requires SageMath)
+├── base_pke.py             # Main script — full scheme analysis (requires SageMath)
 ├── moiragus_threshold_repeatition.py# Main script — majority-vote failure analysis (Python 3)
 ├── parameter_selection/             # Parameter set definition and key/ciphertext size computation
 ├── error_term_analyzer/             # Error term and compression error analysis
@@ -33,12 +33,12 @@ The [Lattice Estimator](https://github.com/malb/lattice-estimator) is already bu
 
 ## Running the Scripts
 
-### 1. `moiragus_base_pke.py` — Full Scheme Analysis
+### 1. `base_pke.py` — Full Scheme Analysis
 
 Computes key/ciphertext sizes, decryption error probability, and security level via the Lattice Estimator. **Requires SageMath** because the Lattice Estimator depends on Sage internals.
 
 ```bash
-sage -python moiragus_base_pke.py
+sage -python base_pke.py
 ```
 
 Edit the `MLWEPKEParams` block at the top of the script to configure the parameter set before running.
@@ -57,5 +57,5 @@ The script will prompt for the `pe` exponent (e.g. `-9` for `pe = 2⁻⁹`).
 
 ## Requirements
 
-- [SageMath](https://www.sagemath.org/) — required for `moiragus_base_pke.py` only
+- [SageMath](https://www.sagemath.org/) — required for `base_pke.py` only
 - Python 3.8+ — sufficient for `moiragus_threshold_repeatition.py`

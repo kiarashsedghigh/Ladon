@@ -85,14 +85,20 @@ def compute_mlwe_pke_decryption_error(params: MLWEPKEParams, interactive=False):
 
     print("Computing error/success probabilities...")
 
+    error_bound = 0
     # Success probability for a single coefficient
     if interactive:
         while True:
-            error_bound = int(input("Enter error bound: "))
+            new_bound = (input("Enter error bound: "))
+            if new_bound == "q":
+                return int(error_bound)
+
+            error_bound = int(new_bound)
             _print_total_error_bound(total_error_coeff, error_bound, params.d)
 
             print()
     else:
+
         error_bound = params.q // 4 - 1
         _print_total_error_bound(total_error_coeff, error_bound, params.d)
 

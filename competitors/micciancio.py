@@ -5,68 +5,47 @@ Paper : Micciancio & Suhl, "Simulation-Secure Threshold PKE from LWE with
         Polynomial Modulus" (2023-1728).
 
 ================================================================================
-STRUCTURE (and how it relates to the other two scripts)
+STRUCTURE
 ================================================================================
 Like Pilvi, this scheme is NON-INTERACTIVE: each server locally computes one
 partial decryption and the shares are simply ADDED UP and rounded.  There are NO
-commit / open rounds (unlike the Lapiha-Prest interactive TKEMs in sasha_prest).
-So Phase 1 is a single message per party to one reconstructor (combiner),
-counted -- as agreed -- as system = n * |pd|.
+commit / open rounds (unlike the Lapiha-Prest interactive TKEMs).  So Phase 1
+is a single message per party to one reconstructor (combiner), counted as
+   system = n * |pd|.
 
 Differences from Pilvi worth flagging:
-  * It is T-out-of-T (additive sharing  s = sum_i s_i), NOT t-out-of-K.  So ALL
-    T parties must participate; the symbolic variable n here = T = #parties.
+  * It is T-out-of-T (additive sharing  s = sum_i s_i), NOT t-out-of-K.  All T
+    parties must participate; the symbolic variable n here = T = #parties.
   * It is PLAIN LWE (not ring): a "coefficient" is one Z_q integer of
-    ceil(log2 q) bits, i.e. the per-element size is ceil(log2 q)/8 bytes with no
-    ring degree phi multiplier.
-  * Additive T-out-of-T shares are full uniform vectors, so |sk_share| = |sk|,
-    N-independent (cf. the additive/Shamir N-independent cases elsewhere).
-
-================================================================================
-EXTENDING THE 2-BIT EXAMPLE TO 256-BIT MESSAGES
-================================================================================
-Section 6 gives a Frodo-640-like instantiation for a SINGLE scalar 2-bit message
-(plaintext modulus 4).  The paper notes a matrix variant is "straightforward but
-left for future work".  To match Pilvi's 256-bit message we do exactly that
-matrix/reused-randomness extension:
-
-    pack L = 256 / 2 = 128 two-bit slots into ONE ciphertext that REUSES a single
-    a-part (r^T A + f in Z_q^n), exactly like Frodo's C1 and like Pilvi's c0=Ax.
-
-    ctxt   = ( a-part in Z_q^n  [shared] , (b-slots) in Z_q^L )   -> (n + L) elems
-    pd_k   = ( <a, s_{k,j}> + e~ )_{j in [L]}  in Z_q^L           -> L elems
-    sk     = (s_1, ..., s_L) in (Z_q^n)^L                         -> L*n elems
-    sk_k   = additive share, same shape                          -> L*n elems = |sk|
-
-This is the SAME shape as Pilvi (just Z_q scalars in place of ring elements),
-which is what makes the two directly comparable.
+    ceil(log2 q) bits, i.e. no ring degree multiplier.
+  * Additive T-out-of-T shares are full uniform vectors -> |sk_share| = |sk|,
+    N-independent.
 
 ================================================================================
 COMMUNICATION MODEL (n = T = #participating parties)
 ================================================================================
-  Phase 0   distribute ctxt    encryptor -> n parties ; system = n * |ctxt|   (1 round)
-  Phase 1   collect shares      each party -> ONE combiner ; system = n * |pd| (1 round)
-                                (shares are summed by the combiner; non-interactive)
+  Phase 0   distribute ctxt    encryptor -> n parties   ; system = n * |ctxt|  (1 round)
+  Phase 1   collect shares     each party -> combiner   ; system = n * |pd|    (1 round)
+                               (shares summed by the combiner; non-interactive)
+
+PER-PARTY end-to-end is reported TWICE: excluding Phase 0 (party only receives
+ctxt) and including Phase 0 (full per-server traffic). SYSTEM always includes
+Phase 0.  Output convention: BYTES first, KiB in GREEN parentheses.
 """
 from math import ceil, log2
 
 KiB = 1024
+GREEN = "\033[92m"
+RESET = "\033[0m"
 
 
 # ---------------------------------------------------------------------------
 # Parameters.  Section 6 Frodo-640-like instantiation (128-bit security).
-#   n     = 640         (LWE secret dimension, matches Frodo-640)
-#   q     = 65537       (= 2^16 + 1, prime;  ceil(log2 q) = 17 bits)
-#   p     = 4           plaintext modulus -> 2 bits per scalar ciphertext
-#   nc    = 256 / 2 = 128  INDEPENDENT scalar ciphertexts for a 256-bit message
-# Each ciphertext encrypts ONE scalar (no matrix / no a-part reuse), so a
-# 256-bit message is sent as nc separate ciphertexts, each with its OWN a-part.
-# The scheme is T-out-of-T; we tabulate several deployment sizes T.
 # ---------------------------------------------------------------------------
 SECPAR  = 128
 LWE_N   = 640
-LOG2Q   = 17            # ceil(log2 65537);  16-bit packing possible (see note)
-BITS_PER_CT = 2         # plaintext modulus 4 -> 2 bits per scalar ciphertext
+LOG2Q   = 17                 # ceil(log2 65537);  16-bit packing possible (see note)
+BITS_PER_CT = 2              # plaintext modulus 4 -> 2 bits per scalar ciphertext
 MSG_BITS = 256
 NUM_CT  = MSG_BITS // BITS_PER_CT        # = 128 independent ciphertexts
 
@@ -80,7 +59,7 @@ def elem_bytes(log2q):
 
 
 # ---------------------------------------------------------------------------
-# Polynomial in n, stored as {power: coeff_in_bytes}.   (same machinery)
+# Polynomial in n.
 # ---------------------------------------------------------------------------
 def poly_add(*polys):
     out = {}
@@ -94,33 +73,41 @@ def poly_eval(p, n):
     return sum(c * (n ** power) for power, c in p.items())
 
 
-def poly_str(p, unit_bytes=KiB, unit_name="KiB"):
+def _poly_core(p, unit_bytes, fmt):
     if not p:
-        return f"0 {unit_name}"
+        return "0"
     keys = sorted(p)
+    def c(power):
+        return p[power] / unit_bytes
     if keys == [1]:
-        return f"{p[1]/unit_bytes:,.3f}*n {unit_name}"
+        return f"{fmt(c(1))}*n"
     if keys == [0]:
-        return f"{p[0]/unit_bytes:,.3f} {unit_name}"
+        return f"{fmt(c(0))}"
     if keys == [0, 1] and p[0] == -p[1]:
-        return f"{p[1]/unit_bytes:,.3f}*(n-1) {unit_name}"
+        return f"{fmt(c(1))}*(n-1)"
     if keys == [1, 2] and p[1] == -p[2]:
-        return f"{p[2]/unit_bytes:,.3f}*n*(n-1) {unit_name}"
+        return f"{fmt(c(2))}*n*(n-1)"
     terms = []
     for power in sorted(p, reverse=True):
-        c = p[power] / unit_bytes
+        cc = c(power)
         var = {0: "", 1: "*n", 2: "*n^2"}[power]
-        sign = " + " if c >= 0 and terms else (" - " if c < 0 and terms else
-                                               ("-" if c < 0 else ""))
-        terms.append(f"{sign}{abs(c):,.3f}{var}")
-    return "".join(terms) + f" {unit_name}"
+        sign = " + " if cc >= 0 and terms else (" - " if cc < 0 and terms else
+                                                ("-" if cc < 0 else ""))
+        terms.append(f"{sign}{fmt(abs(cc))}{var}")
+    return "".join(terms)
+
+
+def poly_str(p):
+    """Bytes first, then (KiB) in GREEN parentheses."""
+    bytes_part = _poly_core(p, 1,   lambda x: f"{x:,.3f}")
+    kib_part   = _poly_core(p, KiB, lambda x: f"{x:,.3f}")
+    return f"{bytes_part} B    ({GREEN}{kib_part} KiB{RESET})"
 
 
 # ---------------------------------------------------------------------------
 # Cost helper.  Non-interactive: only message is pd_k to a single combiner.
 # ---------------------------------------------------------------------------
 def to_single_combiner(data):
-    """All n parties send `data` to one combiner: system = n * data, 1 round."""
     return dict(per_party={0: data},
                 system   ={1: data},                      # n * data
                 rounds   =1)
@@ -130,25 +117,19 @@ def to_single_combiner(data):
 # Core cost computation.
 # ---------------------------------------------------------------------------
 def _cost(log2q=LOG2Q, n_lwe=LWE_N, nc=NUM_CT):
-    e   = elem_bytes(log2q)                      # one Z_q integer
-    w   = e                                      # "one element" (for printing)
-    # Each scalar ciphertext = (a-part in Z_q^n , 1 scalar in Z_q) = (n+1) elems.
-    # A 256-bit message = nc INDEPENDENT such ciphertexts, each with its own a-part.
+    e   = elem_bytes(log2q)
+    w   = e
     ct1 = (n_lwe + 1) * e                        # one scalar ciphertext
     ct  = nc * ct1                               # full 256-bit message
-    # Partial decryption: one scalar <a, s_k> + e~ per ciphertext -> nc scalars.
     pd  = nc * e                                 # |pd_k|
-    # ONE secret s in Z_q^n decrypts ALL nc ciphertexts (no per-slot keys).
     sk  = n_lwe * e                              # master secret
-    sk_share = {"const": sk, "log": 0}           # additive T-of-T share -> = |sk|, N-indep
-    # public key: seed for A (2k bits) + b = As+e_pk (n elems) + norm c (1 int)
+    sk_share = {"const": sk, "log": 0}           # additive T-of-T, N-indep
     pk  = (2 * SECPAR / 8.0) + n_lwe * e + 4
 
     # Phase 0: distribute ct  (encryptor -> n participating parties)
     P0 = dict(per_party={0: ct}, system={1: ct}, rounds=1)
 
-    # Phase 1: collect partial decryptions.  NON-INTERACTIVE -- shares are summed
-    # by one combiner; each of the n=T parties sends its pd_k once: n * pd.
+    # Phase 1: collect partial decryptions (NON-INTERACTIVE).
     step = to_single_combiner(pd)
 
     return dict(
@@ -159,9 +140,10 @@ def _cost(log2q=LOG2Q, n_lwe=LWE_N, nc=NUM_CT):
                 total_per_party=step["per_party"],
                 total_system=step["system"],
                 total_rounds=step["rounds"]),
-        total_per_party=poly_add(P0["per_party"], step["per_party"]),
-        total_system   =poly_add(P0["system"],    step["system"]),
-        total_rounds   =P0["rounds"] + step["rounds"],
+        total_per_party_excl_P0=step["per_party"],
+        total_per_party_incl_P0=poly_add(P0["per_party"], step["per_party"]),
+        total_system           =poly_add(P0["system"],    step["system"]),
+        total_rounds           =P0["rounds"] + step["rounds"],
     )
 
 
@@ -170,21 +152,28 @@ def cost_micciancio_suhl():
 
 
 # ---------------------------------------------------------------------------
-# Printer
+# Printer (bytes first, KiB in green parentheses)
 # ---------------------------------------------------------------------------
-def _fmt(b):
+def _both(b):
     if b is None:
         return "n/a"
+    if b == int(b) and b < 10_000:
+        b_str = f"{int(b):,} B"
+    else:
+        b_str = f"{b:,.0f} B"
     if b >= KiB * KiB:
-        return f"{b/(KiB*KiB):,.2f} MiB"
-    return f"{b/KiB:,.2f} KiB" if b >= KiB else f"{b:,.0f} B"
+        k_str = f"{b/(KiB*KiB):,.2f} MiB"
+    else:
+        k_str = f"{b/KiB:,.2f} KiB"
+    return f"{b_str}    ({GREEN}{k_str}{RESET})"
 
 
-def sk_share_str(rep, unit_bytes=KiB, unit_name="KiB"):
+def sk_share_str(rep):
     c, l = rep["const"], rep["log"]
     if l == 0:
-        return f"{c/unit_bytes:,.2f} {unit_name}  (additive T-of-T, N-independent)"
-    return f"{c/unit_bytes:,.2f} + {l/unit_bytes:,.2f}*log2(N) {unit_name}"
+        return f"{_both(c)}    (additive T-of-T, N-independent)"
+    return (f"{c:,.0f} + {l:,.0f}*log2(N) B    "
+            f"({GREEN}{c/KiB:,.2f} + {l/KiB:,.2f}*log2(N) KiB{RESET})")
 
 
 def _print_step(label, step, n_concrete=None):
@@ -193,7 +182,7 @@ def _print_step(label, step, n_concrete=None):
     line = (f"            system    : {poly_str(step['system'])}    "
             f"({step['rounds']} round{'s' if step['rounds']!=1 else ''})")
     if n_concrete is not None:
-        line += f"   |  at n={n_concrete}: {_fmt(poly_eval(step['system'], n_concrete))}"
+        line += f"   |  at n={n_concrete}: {_both(poly_eval(step['system'], n_concrete))}"
     print(line)
 
 
@@ -205,24 +194,42 @@ def show(res):
           f"{s['nc']*BITS_PER_CT}-bit message")
     print(f"     regime = combiner (pd_k summed at one combiner, counted n*pd)  "
           f"[non-interactive: 1 send/party, no commit/open]")
-    print(f"     sizes  : |sk|={_fmt(s['sk'])}   |sk_share|={sk_share_str(s['sk_share'])}")
-    print(f"              |pk|={_fmt(s['pk'])}   |ctxt(1 scalar)|={_fmt(s['ct1'])}   "
-          f"|ctxt(256-bit)|={_fmt(s['ct'])}   |pd_k|={_fmt(s['pd'])}   |elem|={_fmt(s['w'])}")
+    print(f"     --- Sizes ---")
+    print(f"     |sk|       = {_both(s['sk'])}")
+    print(f"     |sk_share| = {sk_share_str(s['sk_share'])}")
+    print(f"     |pk|       = {_both(s['pk'])}")
+    print(f"     |ctxt(1 scalar)|  = {_both(s['ct1'])}")
+    print(f"     |ctxt(256-bit)|   = {_both(s['ct'])}    (= nc * (n+1) * elem)")
+    print(f"     |pd_k|     = {_both(s['pd'])}    (= nc * elem)")
+    print(f"     |elem|     = {_both(s['w'])}    (one Z_q integer)")
 
+    print(f"     --- Communication ---")
     _print_step("Phase 0  distribute ctxt :", res["P0"])
     print(f"        Phase 1  collect partial decryptions (NON-INTERACTIVE):")
     _print_step("step    send pd_k -> combiner :", res["P1"]["step"])
 
-    print(f"     END-TO-END per-party total : {poly_str(res['total_per_party'])}")
-    print(f"     END-TO-END system    total : {poly_str(res['total_system'])}"
-          f"    ({res['total_rounds']} rounds)")
+    print(f"     END-TO-END per-party total (excl. Phase 0) : "
+          f"{poly_str(res['total_per_party_excl_P0'])}")
+    print(f"     END-TO-END per-party total (incl. Phase 0) : "
+          f"{poly_str(res['total_per_party_incl_P0'])}")
+    print(f"     END-TO-END system    total                 : "
+          f"{poly_str(res['total_system'])}    ({res['total_rounds']} rounds)")
 
-    # T-out-of-T: evaluate the system total at several deployment sizes T (= n)
-    print(f"     END-TO-END system total at n = T parties:")
+    # T-out-of-T: evaluate at several deployment sizes T (= n)
+    print(f"     --- End-to-end at concrete n = T parties ---")
+    print(f"     {'T':<8} {'per-party (excl. P0)':<22} {'per-party (incl. P0)':<22} "
+          f"{'system':<22}")
     for T in T_VALUES:
         tag = "  (max supported)" if T == 8263 else ""
-        print(f"          T={T:<5}: {_fmt(poly_eval(res['total_system'], T))}"
-              f"   (per-party {_fmt(poly_eval(res['total_per_party'], T))}){tag}")
+        pp_e = poly_eval(res['total_per_party_excl_P0'], T)
+        pp_i = poly_eval(res['total_per_party_incl_P0'], T)
+        sy   = poly_eval(res['total_system'], T)
+        # plain (no color) for the table to keep columns aligned
+        def _plain(b):
+            if b >= KiB*KiB: return f"{b/(KiB*KiB):,.2f} MiB"
+            return f"{b/KiB:,.2f} KiB" if b >= KiB else f"{b:,.0f} B"
+        print(f"     T={T:<6} {_plain(pp_e):<22} {_plain(pp_i):<22} "
+              f"{_plain(sy):<22}{tag}")
 
 
 MS_NOTE = """\
