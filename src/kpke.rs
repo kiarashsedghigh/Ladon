@@ -92,22 +92,47 @@ pub fn key_gen<PARAMS: MlKemParams>() -> KpkeKeyGenOutput<{PARAMS::K}> where
 
 use crate::negacyclic;
 
-
-const K_BITS: u32 = 20; // modulus = 2^20  (must be <= 24 for the 1-draw sampler)
-
 /// Sample one ring of A uniformly mod 2^k, in coefficient form, from an XOF
 /// stream keyed by (rho, i, j). Each coefficient = low K_BITS bits of a 24-bit
 /// (3-byte) XOF draw. Valid for K_BITS <= 24.
+// fn sample_uniform_2k(mut xof: crypt::XOF) -> Ring {
+//     assert!(K_BITS <= 24, "1-draw sampler needs K_BITS <= 24");
+//     let mask: u32 = ((1u64 << K_BITS) - 1) as u32;
+//
+//     let mut ring = Ring::ZEROES_DEGREE255; // coefficient form, not NTT
+//     let mut three = [0u8; 3];
+//     for c in 0..256 {
+//         xof.get_3_bytes(&mut three);
+//         let d = (three[0] as u32) | ((three[1] as u32) << 8) | ((three[2] as u32) << 16);
+//         ring.data[c] = d & mask;
+//     }
+//     ring
+// }
+
+/// Sample one ring of A uniformly mod 2^k, in coefficient form, from an XOF
+/// stream keyed by (rho, i, j). Each coefficient = low K_BITS bits of a u64
+/// drawn from the XOF (two 3-byte reads = 48 bits). Valid for K_BITS <= 48,
+/// which covers all sensible PKE settings (k up to ~48 stays well inside
+/// the i128 negacyclic-matmul headroom too).
 fn sample_uniform_2k(mut xof: crypt::XOF) -> Ring {
-    assert!(K_BITS <= 24, "1-draw sampler needs K_BITS <= 24");
-    let mask: u32 = ((1u64 << K_BITS) - 1) as u32;
+    assert!(K_BITS <= 48, "sampler needs K_BITS <= 48 (uses two 3-byte XOF reads)");
+    let mask: u64 = (1u64 << K_BITS) - 1;
 
     let mut ring = Ring::ZEROES_DEGREE255; // coefficient form, not NTT
     let mut three = [0u8; 3];
     for c in 0..256 {
+        // First 3 bytes -> low 24 bits.
         xof.get_3_bytes(&mut three);
-        let d = (three[0] as u32) | ((three[1] as u32) << 8) | ((three[2] as u32) << 16);
-        ring.data[c] = d & mask;
+        let lo = (three[0] as u64) | ((three[1] as u64) << 8) | ((three[2] as u64) << 16);
+
+        // Second 3 bytes -> next 24 bits. Always draw both, regardless of
+        // K_BITS, so the XOF stream advances deterministically and the
+        // sampler is constant-work per coefficient.
+        xof.get_3_bytes(&mut three);
+        let hi = (three[0] as u64) | ((three[1] as u64) << 8) | ((three[2] as u64) << 16);
+
+        let d: u64 = lo | (hi << 24);
+        ring.data[c] = (d & mask) as u32;
     }
     ring
 }
@@ -269,7 +294,7 @@ pub fn encrypt<PARAMS: MlKemParams>(ek_pke: KpkeEncryptionKey<{PARAMS::K}>, m: C
         n += 1;
     }
 
-    // Error vector to be added to the shared key V (R^T * t) 
+    // Error vector to be added to the shared key V (R^T * t)
     let e_2 = sample::sample_poly_cbd::<{PARAMS::ETA_2}>(
         crypt::prf::<{PARAMS::ETA_2}>(&rand, n as u8)
     );

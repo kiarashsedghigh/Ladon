@@ -1,5 +1,5 @@
 [package]
-name = "Moiragus"
+name = "Ladon"
 version = "0.1.0"
 edition = "2024"
 
@@ -8,15 +8,13 @@ bitvec = "1.0.1"
 rand = "0.8.5"
 sha3 = "0.10.8"
 ndarray = "0.17.2"
-num-bigint = "0.4.6"
-num-traits = "0.2.19"
 
 [toolchain]
 channel = "nightly"
 components = ["rust-src"]
 
 [[bench]]
-name = "keygen"
+name = "keygen_sharing"
 harness = false
 
 [[bench]]

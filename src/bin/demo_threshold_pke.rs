@@ -21,20 +21,20 @@
 use bitvec::view::BitView;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 
-use Moiragus::additive_ring::reconstruct_vector_lifted;
-use Moiragus::dealer_spdz::DealerSpdz;
-use Moiragus::kpke;
-use Moiragus::params::*;
-use Moiragus::party_spdz::PartySpdz;
-use Moiragus::ring::{Compressed, Ring};
-use Moiragus::serialize::{BitOrder, MlKemDeserialize, MlKemSerialize};
-use Moiragus::threshold_decrypt::{assemble_parties, threshold_decrypt};
+use Ladon::additive_ring::reconstruct_vector_lifted;
+use Ladon::dealer_spdz::DealerSpdz;
+use Ladon::kpke;
+use Ladon::params::*;
+use Ladon::party_spdz::PartySpdz;
+use Ladon::ring::{Compressed, Ring};
+use Ladon::serialize::{BitOrder, MlKemDeserialize, MlKemSerialize};
+use Ladon::threshold_decrypt::{assemble_parties, threshold_decrypt};
 
 // ===========================================================================
 // ====== DEMO PARAMETERS — edit these =======================================
 // ===========================================================================
 const N_PARTIES: usize = 5;     // dishonest-majority: ALL n must participate
-const K_BITS:    u32   = 20;    // base PKE modulus 2^k. MUST match kpke::K_BITS.
+const K_BITS:    u32   = 30;    // base PKE modulus 2^k. MUST match kpke::K_BITS.
 const S_BITS:    u32   = 40;    // statistical security (SPDZ2k lift width)
 const P_PLAINTEXT: u128 = 2;    // plaintext modulus (power of two)
 // Parameter set: MlKem512 / MlKem768 / MlKem1024.
@@ -119,13 +119,13 @@ where
     // ---- Threshold decrypt (all n parties) --------------------------------
     // partial_decrypt takes the DECOMPRESSED (u, v); decompress here using
     // the same shift-based helpers encrypt_2k/decrypt_2k use internally.
-    let u_decompressed = Moiragus::negacyclic::decompress_vector_2k::<{ PARAMS::K }>(
+    let u_decompressed = Ladon::negacyclic::decompress_vector_2k::<{ PARAMS::K }>(
         &ct.0 .0,
         PARAMS::D_U as u32,
         K_BITS,
     );
     let v_decompressed =
-        Moiragus::negacyclic::decompress_ring_2k(&ct.1 .0, PARAMS::D_V as u32, K_BITS);
+        Ladon::negacyclic::decompress_ring_2k(&ct.1 .0, PARAMS::D_V as u32, K_BITS);
 
     let parties: Vec<PartySpdz<{ PARAMS::K }>> =
         assemble_parties::<{ PARAMS::K }>(&ks.sk_shares, &dbl, dealer.params);

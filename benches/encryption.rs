@@ -20,21 +20,9 @@ fn random_32() -> [u8; 32] {
     out
 }
 fn main() {
-    let args: Vec<String> = std::env::args().collect();
-
-    let paramset = args
-        .iter()
-        .map(|s| s.as_str())
-        .find(|s| matches!(*s, "ML-KEM-512" | "ML-KEM-768" | "ML-KEM-1024"))
-        .unwrap_or("ML-KEM-512");
     let iterations: usize = 1000;
 
-    match paramset {
-        "ML-KEM-512" => bench_encrypt::<MlKem512>("ML-KEM-512", iterations),
-        "ML-KEM-768" => bench_encrypt::<MlKem768>("ML-KEM-768", iterations),
-        "ML-KEM-1024" => bench_encrypt::<MlKem1024>("ML-KEM-1024", iterations),
-        _ => panic!("Invalid parameter set: {paramset}"),
-    }
+    bench_encrypt::<Ladon128>("Ladon128", iterations)
 }
 
 fn bench_encrypt<PARAMS: MlKemParams>(label: &str, iterations: usize)

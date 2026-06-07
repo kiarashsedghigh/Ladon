@@ -3,27 +3,14 @@
 
 use std::hint::black_box;
 use std::time::{Duration, Instant};
-
-use Moiragus::{kpke, params::*};
+use Ladon::{kpke, params::*};
 
 fn main() {
-    let args: Vec<String> = std::env::args().collect();
-
-    let paramset = args
-        .iter()
-        .map(|s| s.as_str())
-        .find(|s| matches!(*s, "ML-KEM-512" | "ML-KEM-768" | "ML-KEM-1024"))
-        .unwrap_or("ML-KEM-512");
     let iterations: usize = 1000;
-
-
-    match paramset {
-        "ML-KEM-512" => bench_keygen::<MlKem512>("ML-KEM-512", iterations),
-        "ML-KEM-768" => bench_keygen::<MlKem768>("ML-KEM-768", iterations),
-        "ML-KEM-1024" => bench_keygen::<MlKem1024>("ML-KEM-1024", iterations),
-        _ => panic!("Invalid parameter set: {paramset}"),
-    }
+    println!("128-bit secure params: \n q: {} \n {:#?}", Q, Ladon128);
+    bench_keygen::<Ladon128>("Ladon128", iterations)
 }
+
 
 fn bench_keygen<PARAMS: MlKemParams>(label: &str, iterations: usize)
 where
@@ -37,7 +24,7 @@ where
     [(); 64 * PARAMS::ETA_2]:,
     [(); 32 * (PARAMS::D_U * PARAMS::K + PARAMS::D_V)]:,
 {
-    println!("=== K-PKE KeyGen benchmark: {label} ===");
+    println!("=== PKE KeyGen benchmark: {label} ===");
     println!("iterations: {iterations}");
 
     // Warmup
