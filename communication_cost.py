@@ -104,43 +104,77 @@ def _poly_bytes(d, log2_modulus):
 # ---------------------------------------------------------------------------
 # Passive (semi-honest) variant
 # ---------------------------------------------------------------------------
-def cost_scheme_passive(log2_q, log2_qprime, log2_mu, ell, d, ct_bytes):
-    poly_mu     = _poly_bytes(d, log2_mu)
-    poly_qprime = _poly_bytes(d, log2_qprime)
+def cost_scheme_passive(log2_q, log2_qprime, log2_mu_prime, ell, d, ct_bytes):
+    """
+    Communication cost for Moiragus passive variant.
 
-    P0          = from_single_source(ct_bytes)
-    step_open   = broadcast_step(ell * poly_mu)
+    Two-round release protocol:
+    - P0: TEE distributes the encapsulating ciphertext to all KBS authorities.
+    - P1, step 1: Authorities open masked errors among themselves (broadcast).
+                  Each opened value is a polynomial mod μ', and there are ℓ of them.
+    - P1, step 2: Authorities send their partial decryptions to the TEE
+                  (single combiner). Each partial is a polynomial mod q', ℓ in total.
+    """
+    poly_mu = _poly_bytes(d, log2_mu_prime)  # element of Z_{μ'}^d
+    poly_qprime = _poly_bytes(d, log2_qprime)  # element of Z_{q'}^d
+
+    # P0: TEE -> all authorities, distributes ct_ak
+    P0 = from_single_source(ct_bytes)
+
+    # P1 step 1: authorities open ℓ masked-error polynomials mod μ' (all-to-all)
+    step_open = broadcast_step(ell * poly_mu)
+
+    # P1 step 2: each authority sends ℓ partial decryptions mod q' to TEE
     step_to_ccn = to_single_combiner(ell * poly_qprime)
 
     P1_per_party = poly_add(step_open["per_party"], step_to_ccn["per_party"])
-    P1_system    = poly_add(step_open["system"],    step_to_ccn["system"])
-    P1_rounds    = step_open["rounds"] + step_to_ccn["rounds"]
+    P1_system = poly_add(step_open["system"], step_to_ccn["system"])
+    P1_rounds = step_open["rounds"] + step_to_ccn["rounds"]
 
-    return dict(
-        paper="Moiragus-passive", robust=False,
-        sizes=dict(poly_mu=poly_mu, poly_qprime=poly_qprime,
-                   ell=ell, d=d, ct=ct_bytes,
-                   log2_q=log2_q, log2_qprime=log2_qprime, log2_mu=log2_mu),
-        P0=dict(steps=dict(distribute_ct=P0),
-                per_party=P0["per_party"], system=P0["system"], rounds=P0["rounds"]),
-        P1=dict(steps=dict(step_open_masked_errors=step_open,
-                           step_send_partials_to_ccn=step_to_ccn),
-                total_per_party=P1_per_party, total_system=P1_system,
-                total_rounds=P1_rounds),
+    result =  dict(
+        paper="Moiragus-passive",
+        robust=False,
+        sizes=dict(
+            poly_mu=poly_mu,
+            poly_qprime=poly_qprime,
+            ell=ell,
+            d=d,
+            ct=ct_bytes,
+            log2_q=log2_q,
+            log2_qprime=log2_qprime,
+            log2_mu=log2_mu_prime,
+        ),
+        P0=dict(
+            steps=dict(distribute_ct=P0),
+            per_party=P0["per_party"],
+            system=P0["system"],
+            rounds=P0["rounds"],
+        ),
+        P1=dict(
+            steps=dict(
+                step_open_masked_errors=step_open,
+                step_send_partials_to_ccn=step_to_ccn,
+            ),
+            total_per_party=P1_per_party,
+            total_system=P1_system,
+            total_rounds=P1_rounds,
+        ),
         total_per_party_excl_P0=P1_per_party,
         total_per_party_incl_P0=poly_add(P0["per_party"], P1_per_party),
-        total_system           =poly_add(P0["system"],    P1_system),
-        total_rounds           =P0["rounds"] + P1_rounds,
+        total_system=poly_add(P0["system"], P1_system),
+        total_rounds=P0["rounds"] + P1_rounds,
     )
+
+    show(result, "passive")
 
 
 # ---------------------------------------------------------------------------
 # Active (malicious-secure) variant  --  SPDZ_{2^k}, q = 2^k
 # ---------------------------------------------------------------------------
-def cost_scheme_active(log2_q, ell, d, ct_bytes, lambda_s=40):
-    poly_open  = _poly_bytes(d, log2_q - 1)            # ell polys over Z_{q/2}
+def cost_scheme_active(log2_q, ell, d, ct_bytes, lambda_s):
+    poly_open  = _poly_bytes(d, log2_q - 1 + lambda_s)            # ell polys over Z_{q/2}
     poly_mac   = _poly_bytes(1, log2_q + lambda_s)     # ONE coeff over lifted ring
-    poly_final = _poly_bytes(d, log2_q)                # ell polys over Z_q
+    poly_final = _poly_bytes(d, log2_q + lambda_s)                # ell polys over Z_q
 
     P0             = from_single_source(ct_bytes)
     step_open      = broadcast_step(ell * poly_open)       # ell polys over q/2
