@@ -1,5 +1,5 @@
 [package]
-name = "Moiragus"
+name = "Ladon"
 version = "0.1.0"
 edition = "2024"
 
@@ -16,7 +16,7 @@ channel = "nightly"
 components = ["rust-src"]
 
 [[bench]]
-name = "keygen"
+name = "keygen_sharing"
 harness = false
 
 [[bench]]

@@ -3,7 +3,7 @@
 version = 4
 
 [[package]]
-name = "Moiragus"
+name = "Ladon"
 version = "0.1.0"
 dependencies = [
  "bitvec",

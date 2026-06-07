@@ -18,23 +18,23 @@
 use bitvec::view::BitView;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 
-use Moiragus::dealer::Dealer;
-use Moiragus::kpke;
-use Moiragus::params::*;
-use Moiragus::party::Party;
-use Moiragus::ring::{Compressed, Ring};
-use Moiragus::serialize::{BitOrder, MlKemDeserialize, MlKemSerialize};
-use Moiragus::shamir_ring::reconstruct_vector;
-use Moiragus::threshold::{assemble_parties, threshold_decrypt};
+use Ladon::dealer::Dealer;
+use Ladon::kpke;
+use Ladon::params::*;
+use Ladon::party::Party;
+use Ladon::ring::{Compressed, Ring};
+use Ladon::serialize::{BitOrder, MlKemDeserialize, MlKemSerialize};
+use Ladon::shamir_ring::reconstruct_vector;
+use Ladon::threshold::{assemble_parties, threshold_decrypt};
 
 // ===========================================================================
 // ====== DEMO PARAMETERS — edit these ======================================
 // ===========================================================================
-const N_PARTIES: usize = 11; // total parties the dealer shares to
+const N_PARTIES: usize = 6; // total parties the dealer shares to
 const THRESHOLD: usize = 3; // t : any t+1 parties can decrypt
 const P_PLAINTEXT: u64 = 2; // plaintext modulus (power of two); 2 = bit/coeff
 // Which parties form the active committee (0-based indices, need t+1 of them):
-const ACTIVE: &[usize] = &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+const ACTIVE: &[usize] = &[0, 1, 2, 3, 4, 5];
 // Parameter set: MlKem512 (K=2), MlKem768 (K=3), or MlKem1024 (K=4).
 type PARAMS = MlKem512;
 // ===========================================================================

@@ -10,10 +10,10 @@ pub const N : usize = 256;
 // pub const Q32: u32 = 3329;
 // pub const Q64: u64 = 3329;
 // pub const ZETA: u16 = 17;
-pub const Q: u32 = 8380417;      // was u16 = 3329
-pub const Q32: u32 = 8380417;
-pub const Q64: u64 = 8380417;
-pub const ZETA: u32 = 3_073_009;      // was u16 = 17 — primitive 512th root of unity mod 8380417
+pub const Q: u32 = 687659009;      // was u16 = 3329
+pub const Q32: u32 = 687659009;
+pub const Q64: u64 = 687659009;
+pub const ZETA: u32 = 174453379;      // was u16 = 17 — primitive 512th root of unity mod 8380417
 
 use std::fmt;
 
@@ -34,11 +34,11 @@ pub trait MlKemParams {
 
 pub struct MlKem512;
 impl MlKemParams for MlKem512 {
-    const K: usize = 4;
+    const K: usize = 6;
     const ETA_1: usize = 2;
     const ETA_2: usize = 2;
-    const D_U: usize = 22;
-    const D_V: usize = 18;
+    const D_U: usize = 28;
+    const D_V: usize = 26;
 }
 
 impl fmt::Debug for MlKem512 {

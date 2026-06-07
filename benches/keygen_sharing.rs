@@ -4,7 +4,7 @@
 use std::hint::black_box;
 use std::time::{Duration, Instant};
 
-use Moiragus::{kpke, params::*};
+use Ladon::{kpke, params::*};
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();

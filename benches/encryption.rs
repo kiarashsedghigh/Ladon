@@ -7,9 +7,9 @@ use std::time::{Duration, Instant};
 use bitvec::view::BitView;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 
-use Moiragus::{kpke, params::*};
-use Moiragus::ring::{Compressed, Ring};
-use Moiragus::serialize::{BitOrder, MlKemDeserialize};
+use Ladon::{kpke, params::*};
+use Ladon::ring::{Compressed, Ring};
+use Ladon::serialize::{BitOrder, MlKemDeserialize};
 
 /// 32 cryptographically-random bytes. Mirrors `crypt::random_bytes::<32>()`,
 /// reimplemented here because the `crypt` module is private to the crate.

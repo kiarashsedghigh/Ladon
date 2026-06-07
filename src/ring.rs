@@ -179,7 +179,7 @@ impl Ring {
 
             // 128^-1 mod 8380417 (this NTT normalizes by 128, matching the
             // degree-2 base case; 3303 = 128^-1 mod 3329 in the original).
-            self.scalar_mul(8314945);
+            self.scalar_mul(682286673);
 
             self.t = RingRepresentation::Degree255;
 
