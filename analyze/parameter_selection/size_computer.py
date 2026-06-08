@@ -7,8 +7,7 @@ This module computes the key and ciphertext sizes for MLWE-based public-key
 
 from __future__ import annotations
 
-from math import ceil, log2
-from parameter_selection.param_set import *
+from analyze.parameter_selection.param_set import *
 
 
 def compute_mlwe_pke_key_ciphertext_size(pke_params: MLWEPKEParams) -> tuple[int, int, int]:
