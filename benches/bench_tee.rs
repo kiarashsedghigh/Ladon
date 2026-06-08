@@ -53,8 +53,8 @@ const THRESHOLDS: &[usize] = &[4, 8, 16, 32];
 const P_PLAINTEXT: u64 = 2;
 
 // Parallel double sharings per security level (Section 5.1).
-const ELL_LADON128: usize = 5;
-const ELL_LADON256: usize = 32;
+const ELL_LADON128: usize = 31;
+const ELL_LADON256: usize = 31;
 
 const ITERATIONS: usize = 5000;
 const WARMUP: usize = 100;

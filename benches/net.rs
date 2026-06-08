@@ -35,7 +35,7 @@ use std::time::{Duration, Instant};
 // ====== BENCH KNOBS — edit these ==========================================
 // ===========================================================================
 /// One-way network latencies to sweep (milliseconds).
-const NETWORK_LATENCIES_MS: &[u64] = &[0, 1, 10, 50, 100];
+const NETWORK_LATENCIES_MS: &[u64] = &[1, 15];
 
 /// Per-party uplink bandwidth in Mbps. 0 = infinite (latency-only model).
 const NETWORK_BANDWIDTH_MBPS: u64 = 1000;
@@ -46,12 +46,12 @@ const N_PARTIES_LIST: &[usize] = &[4, 8, 16, 32];
 /// Per-message payload sizes in BYTES. Each party broadcasts a buffer of
 /// this many bytes to every other party. Specify whatever values you want
 /// to bench — independent of ell, K, or any cryptographic parameter.
-const PAYLOAD_SIZES_BYTES: &[usize] = &[10_240, 65_536];
+const PAYLOAD_SIZES_BYTES: &[usize] = &[6496];
 
 /// Timed iterations per (payload, n, latency).
-const ITERATIONS: usize = 50;
+const ITERATIONS: usize = 1000;
 /// Warmup iterations per (payload, n, latency).
-const WARMUP: usize = 10;
+const WARMUP: usize = 100;
 // ===========================================================================
 
 fn main() {

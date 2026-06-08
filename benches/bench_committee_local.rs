@@ -34,8 +34,8 @@ use Ladon::threshold::{assemble_parties, open_v, threshold_decrypt};
 // ====== BENCH KNOBS — edit these ==========================================
 // ===========================================================================
 // Parallel double sharings per security level (Section 5.1 of the paper).
-const ELL_LADON128: usize = 5;
-const ELL_LADON256: usize = 32;
+const ELL_LADON128: usize = 31;
+const ELL_LADON256: usize = 31;
 
 const P_PLAINTEXT: u64 = 2;
 // Threshold convention: t = min-to-decrypt. Polynomial degree = t-1.
