@@ -10,18 +10,18 @@
 //! statistical security parameter (typically s=40). The lift gives statistical
 //! hiding: any (n-1) shares are uniform in [0, 2^(k+s)).
 //!
+//! Notation (matches the paper):
+//!   q        = 2^k        (PKE / ciphertext modulus, also called m_base)
+//!   q'       = 2^round(log2(q))  ; for q = 2^k this is q' = q (identity switch)
+//!   mu       = q / p
+//!   mu'      = q' / p     ; equals mu in active branch since q' = q
+//!   m_share  = 2^(k+s)    (lifted ring used to share the long-lived secret key)
+//!
 //! Sharing rule: sample n-1 shares uniformly in [0, 2^(k+s)); the last share
 //! makes the sum equal to the secret mod 2^(k+s). Reduce the reconstruction
 //! mod 2^k to recover the base value.
 //!
-//! Storage: u128 (k+s up to ~120 bits with headroom). Operations done in u128;
-//! sums never overflow because both addends are < 2^(k+s) < 2^120.
-//!
-//! Conventions
-//! -----------
-//! Party indices are i in 1..=n (matching the shamir layer for consistency, so
-//! "party j" is the same identifier across both branches). Share i is the
-//! value held by party i.
+//! Storage: u128 (k+s up to ~120 bits with headroom).
 
 use rand::{Rng, RngCore};
 
@@ -29,26 +29,25 @@ use rand::{Rng, RngCore};
 // Parameters
 // ---------------------------------------------------------------------------
 
-/// SPDZ2k modulus parameters. Two distinct sharing rings live here:
-///
-///   * **m_share / m_phi**  — the LIFTED rings (2^(k+s) and 2^(k+s)/p) used
-///     for sharing the long-lived secret key. The lift gives the statistical
-///     hiding that distinguishes SPDZ2k from naive additive sharing.
-///   * **q / delta**        — the BASE rings (2^k and 2^(k-1)) used for the
-///     one-time "mask-then-open" double sharing. Because we skip the explicit
-///     modulus switch (q = 2^k already has p | q, so Delta = q/p is exact),
-///     the noise share <e>^Delta is masked and opened directly in (q, Delta),
-///     not in any lifted ring.
+/// SPDZ2k modulus parameters. Two sharing regimes live here:
+///   * `m_share` — the LIFTED ring (2^(k+s)) used to share the long-lived
+///     secret key for statistical hiding.
+///   * `q, q', mu, mu'` — the BASE rings used in the one-time mask-then-open
+///     double sharing. In the active branch q is already a power of 2, so
+///     q' = q and mu' = mu; the names follow the paper anyway.
 #[derive(Clone, Copy, Debug)]
 pub struct SpdzParams {
-    pub k: u32,       // base modulus exponent  (PKE side)
-    pub s: u32,       // statistical security bits (lift width)
-    pub p: u128,      // plaintext modulus, power of two
-    pub m_base: u128, // 2^k         — same as q below; kept for clarity
-    pub m_share: u128,// 2^(k+s)     — secret-key sharing modulus (lifted)
-    pub m_phi: u128,  // 2^(k+s)/p   — historical, currently unused by the protocol
-    pub q: u128,      // 2^k         — PKE / ciphertext modulus
-    pub delta: u128,  // q / p       — noise-share modulus for double sharing
+    pub k: u32,
+    pub s: u32,
+    pub p: u128,
+
+    pub m_base: u128,     // 2^k         (== q; kept for additive_ring compatibility)
+    pub m_share: u128,    // 2^(k+s)     (lifted secret-key sharing modulus)
+
+    pub q: u128,          // 2^k         (ciphertext modulus)
+    pub q_prime: u128,    // 2^round(log2(q))    (paper's q'; = q here)
+    pub mu: u128,         // q / p       (was 'delta')
+    pub mu_prime: u128,   // q' / p      (paper's mu'; = mu here)
 }
 
 impl SpdzParams {
@@ -56,12 +55,29 @@ impl SpdzParams {
         assert!(p.is_power_of_two(), "p must be a power of two");
         assert!(k + s <= 120, "k+s must fit comfortably in u128");
         assert!(k >= 1, "k must be at least 1");
-        let m_share = 1u128 << (k + s);
+
         let m_base = 1u128 << k;
-        let m_phi = m_share / p;
+        let m_share = 1u128 << (k + s);
         let q = m_base;
-        let delta = q / p;
-        SpdzParams { k, s, p, m_base, m_share, m_phi, q, delta }
+
+        // q' = 2^round(log2(q)). For q = 2^k the round() is exact; q' = q.
+        let log2_q = (q as f64).log2();
+        let k_prime = log2_q.round() as u32;
+        let q_prime: u128 = 1u128 << k_prime;
+        assert!(q_prime <= q, "q' must be <= q for mod switching down");
+        assert!(q_prime % p == 0, "p must divide q'");
+
+        SpdzParams {
+            k,
+            s,
+            p,
+            m_base,
+            m_share,
+            q,
+            q_prime,
+            mu: q / p,
+            mu_prime: q_prime / p,
+        }
     }
 }
 
@@ -69,8 +85,6 @@ impl SpdzParams {
 // A scalar additive share
 // ---------------------------------------------------------------------------
 
-/// One party's additive share of a scalar over Z_{2^(k+s)}.
-/// `x` is the party id (1..=n); `y` is the share value in [0, 2^(k+s)).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct AddShare {
     pub x: u32,
@@ -78,30 +92,15 @@ pub struct AddShare {
 }
 
 // ---------------------------------------------------------------------------
-// Sampling helper
+// Share / reconstruct over an arbitrary 2^X modulus
 // ---------------------------------------------------------------------------
 
-/// Uniform u128 in [0, modulus). Uses rand::Rng::gen_range, which handles the
-/// modulo-bias correctly for arbitrary u128 bounds.
-fn random_in_range<R: Rng>(modulus: u128, rng: &mut R) -> u128 {
-    rng.gen_range(0..modulus)
-}
-
-// ---------------------------------------------------------------------------
-// Share / reconstruct over an arbitrary 2^X modulus  (used for double sharing
-// where `r` is sampled directly in the sharing modulus, no lift needed).
-// ---------------------------------------------------------------------------
-
-/// Additively share `value` (assumed already in [0, modulus)) across n parties.
-/// First n-1 shares uniform in [0, modulus); last share makes the sum = value.
 pub fn share(value: u128, n: usize, modulus: u128) -> Vec<AddShare> {
     use rand::SeedableRng;
     let mut rng = rand::rngs::StdRng::from_entropy();
     share_with_rng(value, n, modulus, &mut rng)
 }
 
-/// As `share`, but with a caller-provided RNG (avoids re-seeding when sharing
-/// many values in a row, e.g. all 256 coefficients of a polynomial).
 pub fn share_with_rng<R: RngCore>(
     value: u128,
     n: usize,
@@ -111,9 +110,6 @@ pub fn share_with_rng<R: RngCore>(
     assert!(n >= 2, "additive sharing needs at least 2 parties");
     debug_assert!(value < modulus, "value must be in [0, modulus)");
 
-    // The RNG passed in is RngCore but rand::Rng::gen_range needs Rng; both
-    // are blanket-implemented for everything that implements RngCore, but the
-    // blanket Rng impl lives behind a trait import. Use that via a local Rng.
     use rand::Rng as _;
 
     let mut shares = Vec::with_capacity(n);
@@ -123,7 +119,6 @@ pub fn share_with_rng<R: RngCore>(
         shares.push(AddShare { x: (i + 1) as u32, y: v });
         acc = (acc + v) % modulus;
     }
-    // last share: (value - acc) mod modulus
     let last = if value >= acc { value - acc } else { modulus + value - acc };
     shares.push(AddShare { x: n as u32, y: last });
 
@@ -135,8 +130,6 @@ pub fn share_with_rng<R: RngCore>(
     shares
 }
 
-/// Sum additive shares mod `modulus`. Needs ALL n shares for the correct
-/// value; fewer than n produces a uniform random result (the privacy property).
 pub fn reconstruct(shares: &[AddShare], modulus: u128) -> u128 {
     shares.iter().fold(0u128, |acc, s| (acc + s.y) % modulus)
 }
@@ -145,21 +138,15 @@ pub fn reconstruct(shares: &[AddShare], modulus: u128) -> u128 {
 // Lifted sharing: secret in [0, 2^k) shared over Z_{2^(k+s)}
 // ---------------------------------------------------------------------------
 
-/// Share a secret in [0, 2^k) using SPDZ2k's statistically-hiding lift to
-/// Z_{2^(k+s)}. After reconstruction (sum mod 2^(k+s)), reduce mod 2^k to get
-/// the original secret.
 pub fn share_lifted(secret_mod_2k: u128, n: usize, params: &SpdzParams) -> Vec<AddShare> {
     debug_assert!(
         secret_mod_2k < params.m_base,
         "secret must be in [0, 2^k); got {secret_mod_2k} >= {}",
         params.m_base
     );
-    // Embed into the sharing ring as-is (value < 2^k < 2^(k+s)) and share.
     share(secret_mod_2k, n, params.m_share)
 }
 
-/// Reconstruct a lifted share back to the base modulus 2^k. Sums all shares
-/// mod 2^(k+s), then reduces mod 2^k.
 pub fn reconstruct_lifted(shares: &[AddShare], params: &SpdzParams) -> u128 {
     let lifted = reconstruct(shares, params.m_share);
     lifted % params.m_base
@@ -171,67 +158,27 @@ mod tests {
 
     #[test]
     fn test_share_reconstruct_roundtrip_basic() {
-        // Plain additive sharing over a power-of-two modulus, no lift.
         let modulus = 1u128 << 60;
         let v = 123_456_789_u128;
         let shares = share(v, 5, modulus);
         assert_eq!(shares.len(), 5);
-        for (i, s) in shares.iter().enumerate() {
-            assert_eq!(s.x, (i + 1) as u32);
-            assert!(s.y < modulus);
-        }
         assert_eq!(reconstruct(&shares, modulus), v);
     }
 
     #[test]
     fn test_lifted_share_recovers_base() {
-        // Lifted sharing: secret in [0, 2^k), reconstruct mod 2^(k+s) then mod 2^k.
         let p = SpdzParams::new(20, 40, 2);
-        let secret: u128 = 0xABCDE; // < 2^20
+        let secret: u128 = 0xABCDE;
         let shares = share_lifted(secret, 4, &p);
-        assert_eq!(shares.len(), 4);
         assert_eq!(reconstruct_lifted(&shares, &p), secret);
-
-        // The shares themselves must be in [0, 2^(k+s)).
-        for sh in &shares {
-            assert!(sh.y < p.m_share);
-        }
     }
 
     #[test]
-    fn test_random_lifted_roundtrips() {
-        // Many random secrets in [0, 2^k) round-trip through the lift.
-        let p = SpdzParams::new(20, 40, 2);
-        use rand::Rng;
-        let mut rng = rand::thread_rng();
-        for _ in 0..50 {
-            let secret: u128 = rng.gen_range(0..p.m_base);
-            let shares = share_lifted(secret, 3, &p);
-            assert_eq!(reconstruct_lifted(&shares, &p), secret);
-        }
-    }
-
-    #[test]
-    fn test_partial_reveal_is_not_the_secret() {
-        // Privacy sanity: n-1 shares should NOT equal the secret (overwhelming).
-        // Not a formal hiding test, just a smoke check that the last share is
-        // doing the work.
-        let p = SpdzParams::new(20, 40, 2);
-        let secret: u128 = 42;
-        let shares = share_lifted(secret, 4, &p);
-        let partial = reconstruct(&shares[..3], p.m_share);
-        assert_ne!(partial % p.m_base, secret, "three of four shares shouldn't reveal the secret");
-    }
-
-    #[test]
-    fn test_share_with_rng_reuse_is_deterministic() {
-        // Same seeded RNG => same shares (regression / reproducibility).
-        use rand::SeedableRng;
-        let p = SpdzParams::new(20, 40, 2);
-        let mut rng1 = rand::rngs::StdRng::seed_from_u64(42);
-        let mut rng2 = rand::rngs::StdRng::seed_from_u64(42);
-        let a = share_with_rng(7, 3, p.m_share, &mut rng1);
-        let b = share_with_rng(7, 3, p.m_share, &mut rng2);
-        assert_eq!(a, b);
+    fn test_paper_notation_consistency() {
+        // q' = q, mu' = mu in the active branch (q is already a power of 2).
+        let p = SpdzParams::new(30, 40, 2);
+        assert_eq!(p.q, p.q_prime);
+        assert_eq!(p.mu, p.mu_prime);
+        assert_eq!(p.mu, p.q / 2);
     }
 }

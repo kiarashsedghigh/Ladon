@@ -14,9 +14,15 @@ channel = "nightly"
 components = ["rust-src"]
 
 [[bench]]
-name = "keygen_sharing"
+name = "bench_keygen_sharing"
 harness = false
 
 [[bench]]
-name = "encryption"
+name = "bench_tee"
 harness = false
+
+
+[[bench]]
+name = "bench_committee_local"
+harness = false
+

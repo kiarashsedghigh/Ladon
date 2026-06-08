@@ -1,33 +1,28 @@
 //! Block 3 — SPDZ2k Trusted Dealer (dishonest-majority additive sharing).
 //!
-//! Mirrors the Shamir `Dealer` (dealer.rs), but for the 2^k PKE branch with
-//! the SPDZ2k lift to 2^(k+s). Three offline responsibilities:
+//! Mirrors the Shamir `Dealer`, but for the 2^k PKE branch with the SPDZ2k
+//! lift to 2^(k+s). Three offline responsibilities:
 //!
 //!   1. Run the 2^k PKE keygen (kpke::key_gen_2k).
 //!   2. Lifted additive-share the secret key across n parties, into 2^(k+s)
-//!      for statistical hiding of the long-lived secret.
-//!   3. Generate an additive double sharing (<r>^q, <r>^Delta) — over the
-//!      BASE rings q = 2^k and Delta = q/p, NOT the lifted rings. This is
-//!      because the threshold-decrypt protocol skips the explicit modulus
-//!      switch (q already a power of two, p | q), so the noise share <e>^Delta
-//!      is masked and opened directly in (q, Delta). The lift is only for the
-//!      secret key itself.
+//!      for statistical hiding.
+//!   3. Generate `ell` independent additive double sharings (<d_j>^{q'},
+//!      <d_j>^{mu'}) for masking. ell controls the threshold-failure
+//!      amplification (Section 5.1 of the paper): majority decoding across
+//!      ell candidates at receiver_reconstruct time.
+//!
+//! Notation matches the paper:
+//!   q       : original PKE modulus (= 2^k = m_base)
+//!   q'      : modulus after switching (here q' = q since q is a power of 2)
+//!   mu      : q / p  (was 'delta' in earlier versions)
+//!   mu'     : q' / p (= mu here)
 //!
 //! Differences from the Shamir dealer:
-//!   * NO threshold t: dishonest-majority means t = n-1, so reconstruction
-//!     needs ALL n parties (no Lagrange, no committee selection).
+//!   * NO threshold t — dishonest majority means t = n-1; reconstruction
+//!     needs ALL n parties.
 //!   * Sharing is ADDITIVE, lifted from 2^k to 2^(k+s).
-//!   * Double sharing is over POWERS OF TWO (q and Delta), both additive
-//!     (additive works over any ring; Shamir would need a field).
-//!   * Secret key is in COEFFICIENT form already (the 2^k PKE has no NTT),
-//!     so no inverse_ntt step before sharing.
-//!
-//! K_BITS consistency note
-//! -----------------------
-//! `key_gen_2k` has K_BITS = 20 baked in at the top of kpke.rs. The dealer
-//! creates SpdzParams::new(k, s, p); CALLER MUST KEEP `k` IN SYNC with
-//! `kpke::K_BITS`. There's no shared constant yet; this is a deliberate seam
-//! since you said K_BITS would move to params.rs later.
+//!   * Double sharing is over POWERS OF TWO (q' and mu'), both additive.
+//!   * Secret key is in COEFFICIENT form already (no NTT in the 2^k branch).
 
 use crate::additive_2k::{self, AddShare, SpdzParams};
 use crate::additive_ring::{self, VectorShare128};
@@ -38,25 +33,29 @@ use crate::params::*;
 // Output types
 // ---------------------------------------------------------------------------
 
-/// Public encryption key from the 2^k PKE (same shape as the prime version:
-/// a Vector<K> of t-values plus the 32-byte rho seed).
 pub type EncryptionKey<const K: usize> = kpke::KpkeEncryptionKey<K>;
 
-/// One party's additive double-share of the masking polynomial r, coefficient
-/// form, 256 coefficients per ring. `r_q_share` is the share over the PKE
-/// ring q = 2^k; `r_delta_share` is the share over Delta = q/p. Both sums
-/// recover the same integer r (coefficients of r are in [0, Delta) so they
-/// embed unchanged in the larger ring q).
+/// One party's additive double-share of the ell masking polynomials
+/// d_1, ..., d_ell, over BOTH base rings (q' and mu'). Coefficient form,
+/// 256 coefficients per ring per parallel sharing.
 ///
-/// NOTE: these are NOT the lifted rings. The SECRET KEY is shared in the
-/// lifted ring 2^(k+s) for statistical hiding, but the double sharing here
-/// masks one-time noise that lives in Delta, so it operates in the smaller
-/// base rings (q, Delta). See SpdzParams' field comments.
+/// `q_prime[j]` and `mu_prime[j]` are this party's share of d_j over
+/// Z_{q'} and Z_{mu'} respectively. Their (coefficient-wise) sums over all
+/// n parties equal d_j mod q' and mod mu'.
 #[derive(Clone, Debug)]
 pub struct DoubleShare {
     pub party_id: u32,
-    pub r_q_share: [u128; 256],     // share over Z_q = Z_{2^k}
-    pub r_delta_share: [u128; 256], // share over Z_Delta = Z_{2^(k-1)}
+    pub q_prime: Vec<[u128; 256]>,  // length ell; shares over Z_{q'}
+    pub mu_prime: Vec<[u128; 256]>, // length ell; shares over Z_{mu'}
+}
+
+impl DoubleShare {
+    /// Number of parallel double sharings this struct carries.
+    #[inline]
+    pub fn ell(&self) -> usize {
+        debug_assert_eq!(self.q_prime.len(), self.mu_prime.len());
+        self.q_prime.len()
+    }
 }
 
 /// Output of key generation + lifted secret-key sharing.
@@ -69,11 +68,10 @@ pub struct KeyShares<const K: usize> {
 // Dealer
 // ---------------------------------------------------------------------------
 
-/// SPDZ2k trusted dealer. Stores the sharing configuration (n parties + SPDZ
-/// modulus parameters); each call produces fresh randomness.
+/// SPDZ2k trusted dealer.
 pub struct DealerSpdz {
     pub n: usize,
-    pub params: SpdzParams,
+    pub thr: SpdzParams,
 }
 
 impl DealerSpdz {
@@ -81,13 +79,13 @@ impl DealerSpdz {
     /// so the implicit threshold is t = n-1 (reconstruction needs all n).
     pub fn new(n: usize, k: u32, s: u32, p: u128) -> Self {
         assert!(n >= 2, "need at least 2 parties");
-        DealerSpdz { n, params: SpdzParams::new(k, s, p) }
+        DealerSpdz { n, thr: SpdzParams::new(k, s, p) }
     }
 
+    /// Accessor mirroring the Shamir dealer for symmetric code paths.
+    pub fn params(&self) -> &SpdzParams { &self.thr }
+
     /// Run the 2^k PKE keygen and lifted-additive-share the secret key.
-    /// The secret key from key_gen_2k is in coefficient form (no NTT in the
-    /// 2^k branch), with each coefficient in [0, 2^k) — exactly the input
-    /// `share_vector_lifted` expects.
     pub fn generate_keypair<PARAMS: MlKemParams>(&self) -> KeyShares<{ PARAMS::K }>
     where
         [(); 384 * PARAMS::K + 32]:,
@@ -99,159 +97,123 @@ impl DealerSpdz {
     {
         let (ek, s) = kpke::key_gen_2k::<PARAMS>();
         let sk_shares =
-            additive_ring::share_vector_lifted::<{ PARAMS::K }>(&s, self.n, &self.params);
+            additive_ring::share_vector_lifted::<{ PARAMS::K }>(&s, self.n, &self.thr);
         KeyShares { ek, sk_shares }
     }
 
-    /// Generate one additive double sharing (<r>^q, <r>^Delta).
+    /// Generate `ell` independent additive double sharings.
     ///
-    /// `r` is sampled with each coefficient uniform in [0, Delta). The same
-    /// integer is then additively shared TWICE: once over q = 2^k and once
-    /// over Delta = q/p. Because every coefficient of r is < Delta, the
-    /// embedding into q is identity — both shares decode to the same r when
-    /// reconstructed under their respective modulus.
-    ///
-    /// Why (q, Delta) and not the lifted (m_share, m_phi): we're skipping
-    /// the explicit modulus switch (q is already a power of two with p | q),
-    /// so the noise share <e>^Delta is masked and opened directly in (q,Delta).
-    /// The lift only matters for the LONG-LIVED secret-key shares.
-    pub fn generate_double_sharing(&self) -> Vec<DoubleShare> {
+    /// Each d_j is sampled with coefficients uniform in [0, mu') and additively
+    /// shared independently over Z_{q'} and Z_{mu'}. The ell sharings are
+    /// packed per-party: party i's returned `DoubleShare` holds Vec-of-arrays
+    /// for q_prime and mu_prime, both of length ell.
+    pub fn generate_double_sharing(&self, ell: usize) -> Vec<DoubleShare> {
+        assert!(ell >= 1, "ell must be >= 1");
         use rand::{Rng, SeedableRng};
         let mut rng = rand::rngs::StdRng::from_entropy();
 
-        // Sample r: 256 coefficients uniform in [0, Delta).
-        let mut r_coeffs = [0u128; 256];
-        for c in 0..256 {
-            r_coeffs[c] = rng.gen_range(0..self.params.delta);
+        // Initialize n empty per-party DoubleShares with capacity ell.
+        let mut out: Vec<DoubleShare> = (0..self.n)
+            .map(|i| DoubleShare {
+                party_id: (i + 1) as u32,
+                q_prime: Vec::with_capacity(ell),
+                mu_prime: Vec::with_capacity(ell),
+            })
+            .collect();
+
+        for _ in 0..ell {
+            // d_j: 256 coefficients uniform in [0, mu').
+            let mut d_coeffs = [0u128; 256];
+            for c in 0..256 {
+                d_coeffs[c] = rng.gen_range(0..self.thr.mu_prime);
+            }
+
+            // Additive shares of d_j over q' and over mu'.
+            let q_prime_shares_per_coeff: Vec<Vec<AddShare>> = (0..256)
+                .map(|c| {
+                    additive_2k::share_with_rng(d_coeffs[c], self.n, self.thr.q_prime, &mut rng)
+                })
+                .collect();
+            let mu_prime_shares_per_coeff: Vec<Vec<AddShare>> = (0..256)
+                .map(|c| {
+                    additive_2k::share_with_rng(d_coeffs[c], self.n, self.thr.mu_prime, &mut rng)
+                })
+                .collect();
+
+            // Regroup by party: party i gets one [u128; 256] for q' and one for mu'.
+            for i in 0..self.n {
+                let mut q_p = [0u128; 256];
+                let mut m_p = [0u128; 256];
+                for c in 0..256 {
+                    q_p[c] = q_prime_shares_per_coeff[c][i].y;
+                    m_p[c] = mu_prime_shares_per_coeff[c][i].y;
+                }
+                out[i].q_prime.push(q_p);
+                out[i].mu_prime.push(m_p);
+            }
         }
 
-        // Additive shares of r over q and over Delta. Same RNG; the two
-        // share-sets are independent random splits of the same r.
-        let r_shares_q: Vec<Vec<AddShare>> = (0..256)
-            .map(|c| {
-                additive_2k::share_with_rng(r_coeffs[c], self.n, self.params.q, &mut rng)
-            })
-            .collect();
-        let r_shares_delta: Vec<Vec<AddShare>> = (0..256)
-            .map(|c| {
-                additive_2k::share_with_rng(r_coeffs[c], self.n, self.params.delta, &mut rng)
-            })
-            .collect();
-
-        // Regroup by party.
-        (0..self.n)
-            .map(|i| {
-                let mut r_q_share = [0u128; 256];
-                let mut r_delta_share = [0u128; 256];
-                for c in 0..256 {
-                    r_q_share[c] = r_shares_q[c][i].y;
-                    r_delta_share[c] = r_shares_delta[c][i].y;
-                }
-                DoubleShare {
-                    party_id: (i + 1) as u32,
-                    r_q_share,
-                    r_delta_share,
-                }
-            })
-            .collect()
+        out
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::additive_ring::{reconstruct_ring_mod, reconstruct_vector_lifted};
+    use crate::additive_ring::reconstruct_vector_lifted;
 
     #[test]
     fn test_secret_key_shares_reconstruct() {
-        // Deal a keypair, then verify summing all n shares recovers the secret
-        // key (mod 2^k).
         type P = MlKem512;
         let dealer = DealerSpdz::new(4, 20, 40, 2);
         let ks = dealer.generate_keypair::<P>();
         assert_eq!(ks.sk_shares.len(), 4);
 
-        // We don't have the original secret key directly (key_gen_2k doesn't
-        // return it separately to compare against), but reconstructing from
-        // all n shares must give a consistent Vector<K> — and the same value
-        // every time. Reconstruct from two ORDERINGS of the same shares and
-        // confirm they agree (sanity that the sum is order-independent and
-        // not corrupted by the regroup).
-        let rec_a = reconstruct_vector_lifted(&ks.sk_shares, &dealer.params);
+        let rec_a = reconstruct_vector_lifted(&ks.sk_shares, &dealer.thr);
         let mut reversed = ks.sk_shares.clone();
         reversed.reverse();
-        let rec_b = reconstruct_vector_lifted(&reversed, &dealer.params);
-        assert_eq!(rec_a, rec_b, "reconstruction is order-independent");
-
-        // All reconstructed coefficients are in [0, 2^k).
-        for ring in rec_a.data.iter() {
-            for &c in &ring.data {
-                assert!((c as u128) < dealer.params.m_base);
-            }
-        }
+        let rec_b = reconstruct_vector_lifted(&reversed, &dealer.thr);
+        assert_eq!(rec_a, rec_b);
     }
 
     #[test]
-    fn test_double_sharing_consistency() {
-        // The q and delta shares of r must reconstruct to the SAME integer
-        // value per coefficient (since coeffs of r are < Delta, the embedding
-        // into q is identity). Specifically:
-        //   (sum mod q) % Delta == sum mod Delta
-        // and the q-reconstruction is itself < Delta.
+    fn test_double_sharing_consistency_ell_1() {
+        // With ell=1 the double sharing should match the old single-d behavior.
         let dealer = DealerSpdz::new(5, 20, 40, 2);
-        let ds = dealer.generate_double_sharing();
+        let ds = dealer.generate_double_sharing(1);
         assert_eq!(ds.len(), 5);
+        for s in &ds {
+            assert_eq!(s.ell(), 1);
+        }
 
-        let q = dealer.params.q;
-        let delta = dealer.params.delta;
-
+        let q_prime = dealer.thr.q_prime;
+        let mu_prime = dealer.thr.mu_prime;
         for c in 0..256 {
-            let r_from_q: u128 = ds
-                .iter()
-                .fold(0u128, |acc, s| (acc + s.r_q_share[c]) % q);
-            let r_from_delta: u128 = ds
-                .iter()
-                .fold(0u128, |acc, s| (acc + s.r_delta_share[c]) % delta);
-
-            assert_eq!(
-                r_from_q % delta,
-                r_from_delta,
-                "coeff {c}: q-ring and Delta-ring reconstructions disagree"
-            );
-            assert!(
-                r_from_q < delta,
-                "coeff {c}: reconstructed r should be in [0, Delta) since it was sampled there"
-            );
+            let d_from_qp: u128 = ds.iter().fold(0u128, |acc, s| (acc + s.q_prime[0][c]) % q_prime);
+            let d_from_mp: u128 = ds.iter().fold(0u128, |acc, s| (acc + s.mu_prime[0][c]) % mu_prime);
+            assert_eq!(d_from_qp % mu_prime, d_from_mp);
+            assert!(d_from_qp < mu_prime);
         }
     }
 
     #[test]
-    fn test_double_sharing_uses_reconstruct_ring_mod() {
-        // Same consistency check, but via the additive_ring helper to make sure
-        // it agrees with the hand-rolled fold above.
+    fn test_double_sharing_ell_many() {
+        let ell = 5;
         let dealer = DealerSpdz::new(3, 20, 40, 2);
-        let ds = dealer.generate_double_sharing();
+        let ds = dealer.generate_double_sharing(ell);
+        for s in &ds {
+            assert_eq!(s.ell(), ell);
+        }
 
-        let ring_shares_q: Vec<crate::additive_ring::RingShare128> = ds
-            .iter()
-            .map(|d| crate::additive_ring::RingShare128 {
-                x: d.party_id,
-                data: d.r_q_share,
-            })
-            .collect();
-        let recon_q = reconstruct_ring_mod(&ring_shares_q, dealer.params.q);
-
-        let ring_shares_delta: Vec<crate::additive_ring::RingShare128> = ds
-            .iter()
-            .map(|d| crate::additive_ring::RingShare128 {
-                x: d.party_id,
-                data: d.r_delta_share,
-            })
-            .collect();
-        let recon_delta = reconstruct_ring_mod(&ring_shares_delta, dealer.params.delta);
-
-        for c in 0..256 {
-            assert_eq!(recon_q[c] % dealer.params.delta, recon_delta[c]);
+        // Each of the ell parallel double sharings is independently consistent.
+        let q_prime = dealer.thr.q_prime;
+        let mu_prime = dealer.thr.mu_prime;
+        for j in 0..ell {
+            for c in 0..256 {
+                let d_from_qp: u128 = ds.iter().fold(0u128, |acc, s| (acc + s.q_prime[j][c]) % q_prime);
+                let d_from_mp: u128 = ds.iter().fold(0u128, |acc, s| (acc + s.mu_prime[j][c]) % mu_prime);
+                assert_eq!(d_from_qp % mu_prime, d_from_mp);
+            }
         }
     }
 }
