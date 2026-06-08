@@ -10,8 +10,8 @@ pub type KpkeDecryptionKey <const K: usize> = Vector<{K}>;
 pub type KpkeKeyGenOutput <const K: usize> = (KpkeEncryptionKey<{K}>, KpkeDecryptionKey<{K}>);
 
 pub fn key_gen<PARAMS: MlKemParams>() -> KpkeKeyGenOutput<{PARAMS::K}> where
-    [(); 384 * PARAMS::K + 32]: ,
-    [(); 768 * PARAMS::K + 96]: ,
+    [(); 960 * PARAMS::K + 32]: ,
+    [(); 1920 * PARAMS::K + 96]: ,
     [(); PARAMS::K]: ,
     [(); PARAMS::ETA_2]: ,
     [(); 64 * PARAMS::ETA_1]: ,
@@ -49,8 +49,8 @@ pub fn key_gen<PARAMS: MlKemParams>() -> KpkeKeyGenOutput<{PARAMS::K}> where
             crypt::prf::<{PARAMS::ETA_1}>(&sigma, n)
         );
         n += 1;
-    }    
-    
+    }
+
     // NTT both
     let s = s.ntt();
     let e = e.ntt();
@@ -158,8 +158,8 @@ fn reduce_ring_mod_2k(r: &mut Ring) {
 
 pub fn key_gen_2k<PARAMS: MlKemParams>() -> KpkeKeyGenOutput<{ PARAMS::K }>
 where
-    [(); 384 * PARAMS::K + 32]:,
-    [(); 768 * PARAMS::K + 96]:,
+    [(); 960 * PARAMS::K + 32]:,
+    [(); 1920 * PARAMS::K + 96]:,
     [(); PARAMS::K]:,
     [(); PARAMS::ETA_2]:,
     [(); 64 * PARAMS::ETA_1]:,
@@ -261,7 +261,7 @@ pub fn encrypt<PARAMS: MlKemParams>(ek_pke: KpkeEncryptionKey<{PARAMS::K}>, m: C
     [(); PARAMS::K]: ,
     [(); 64 * PARAMS::ETA_1]: ,
     [(); 64 * PARAMS::ETA_2]: ,
-    [(); 384 * PARAMS::K + 32]: ,
+    [(); 960 * PARAMS::K + 32]: ,
     [(); PARAMS::D_U]: ,
 {
     let mut n = 0;
@@ -328,7 +328,7 @@ where
     [(); PARAMS::K]:,
     [(); 64 * PARAMS::ETA_1]:,
     [(); 64 * PARAMS::ETA_2]:,
-    [(); 384 * PARAMS::K + 32]:,
+    [(); 960 * PARAMS::K + 32]:,
     [(); PARAMS::D_U]:,
 {
     use ndarray::Array1;
@@ -491,4 +491,3 @@ pub fn decrypt_2k<PARAMS: MlKemParams>(
     let m_ring = negacyclic::compress_ring_2k(&diff, 1, K_BITS);
     Compressed::<1, Ring>(m_ring)
 }
-

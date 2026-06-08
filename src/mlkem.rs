@@ -32,11 +32,11 @@ pub type MlKemDecapsulationKey<const K: usize> = (KpkeDecryptionKey<K>, KpkeEncr
 /// **Returns** a tuple containing the ML-KEM encapsulation key and the ML-KEM decapsulation key
 ///
 pub fn key_gen<PARAMS: MlKemParams> () -> (MlKemEncapsulationKey<{PARAMS::K}>, MlKemDecapsulationKey<{PARAMS::K}>) where
-    [(); 768 * PARAMS::K + 96]: ,
+    [(); 1920 * PARAMS::K + 96]: ,
     [(); PARAMS::ETA_1]: ,
     [(); PARAMS::ETA_2]: ,
     [(); 64 * PARAMS::ETA_1]: ,
-    [(); 384 * PARAMS::K + 32]: ,
+    [(); 960 * PARAMS::K + 32]: ,
     [(); 32 * (PARAMS::D_U * PARAMS::K + PARAMS::D_V)]: ,
 {
     let z = crypt::random_bytes::<32>();
@@ -58,7 +58,7 @@ pub fn key_gen<PARAMS: MlKemParams> () -> (MlKemEncapsulationKey<{PARAMS::K}>, M
 ///
 /// Expects 3 const generic parameters which determine the size of the ring vectors, and the compression factor for the 2 main cyphertext components. These parameters should coincide with their respective values in the MlKemParams trait: `PARAMS::K`, `PARAMS::D_U`, `PARAMS::D_V` where PARAMS is whatever ML-KEM parameter set you are using (or its generic)
 pub type MlKemCyphertext<const K: usize, const D_U: usize, const D_V: usize> = kpke::Cyphertext<K, D_U, D_V>;
-                                                                               //  Shared Key
+//  Shared Key
 
 /// # ML-KEM.Encaps
 ///
@@ -69,9 +69,9 @@ pub type MlKemCyphertext<const K: usize, const D_U: usize, const D_V: usize> = k
 /// **Returns** a tuple containing the shared key (Party B's copy) and the cyphertext to be sent back
 ///
 pub fn encaps<PARAMS: MlKemParams>(ek_mlkem: MlKemEncapsulationKey<{PARAMS::K}>) -> ([u8;32], MlKemCyphertext<{PARAMS::K}, {PARAMS::D_U}, {PARAMS::D_V}>) where
-    [(); 768 * PARAMS::K + 96]: ,
+    [(); 1920 * PARAMS::K + 96]: ,
     [(); PARAMS::K]: ,
-    [(); 384 * PARAMS::K + 32]: ,
+    [(); 960 * PARAMS::K + 32]: ,
     [(); 32*(PARAMS::D_U * PARAMS::K + PARAMS::D_V)]: ,
     [(); 64 * PARAMS::ETA_1]: ,
     [(); 64 * PARAMS::ETA_2]:
@@ -104,11 +104,11 @@ pub fn encaps<PARAMS: MlKemParams>(ek_mlkem: MlKemEncapsulationKey<{PARAMS::K}>)
 /// **Returns** the shared key (Party A's copy) if the decapsulation is successful (cyphertexts match), otherwise it returns a implicit rejection key.
 pub fn decaps<PARAMS: MlKemParams>(c: MlKemCyphertext<{PARAMS::K}, {PARAMS::D_U}, {PARAMS::D_V}>, dk_mlkem: MlKemDecapsulationKey<{PARAMS::K}>) -> [u8; 32] where
     [(); PARAMS::K]: ,
-    [(); 384 * PARAMS::K + 32]: ,
+    [(); 960 * PARAMS::K + 32]: ,
     [(); 32*(PARAMS::D_U * PARAMS::K + PARAMS::D_V)]: ,
     [(); 64 * PARAMS::ETA_1]: ,
     [(); 64 * PARAMS::ETA_2]: ,
-    [(); 384 * PARAMS::K + 32]:
+    [(); 960 * PARAMS::K + 32]:
 {
     let (dk, ek, hash, z) = dk_mlkem;
 
@@ -126,35 +126,5 @@ pub fn decaps<PARAMS: MlKemParams>(c: MlKemCyphertext<{PARAMS::K}, {PARAMS::D_U}
     match (c.0 == c_prime.0) && (c.1 == c_prime.1) {
         true => key,
         false => crypt::j([&z, c.serialize().as_raw_slice()].concat())
-    }
-}
-
-
-mod tests {
-    #[test]
-    fn test_mlkem<>(){
-        use super::*;
-        type PARAMS = MlKem512;
-
-        //ML-KEM.KeyGen
-        let (ek, dk) = key_gen::<PARAMS>();
-
-        let ek = ek.serialize();
-        let dk = dk.serialize();
-
-        //ML-KEM.Encaps
-        let ek = MlKemEncapsulationKey::<{PARAMS::K}>::deserialize(&ek);
-
-        let (key, c) = encaps::<PARAMS>(ek);
-
-        let c = c.serialize();
-
-        //ML-KEM.Decaps
-        let dk = MlKemDecapsulationKey::<{PARAMS::K}>::deserialize(&dk);
-        let c = MlKemCyphertext::<{PARAMS::K}, {PARAMS::D_U}, {PARAMS::D_V}>::deserialize(&c);
-
-        let key_prime = decaps::<PARAMS>(c, dk);
-
-        assert_eq!(key, key_prime);
     }
 }

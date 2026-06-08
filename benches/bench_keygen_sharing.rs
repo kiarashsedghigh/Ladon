@@ -1,13 +1,14 @@
-//! Bench: Active (SPDZ2k) key generation + secret-key sharing + double sharing.
+//! Bench: Active (SPDZ2k) key generation + lifted secret-key sharing only.
 //!
 //! Times the offline phase per (n) configuration:
-//!   - 2^k PKE keygen (kpke::key_gen_2k)
-//!   - Lifted additive sharing of the secret key over Z_{2^(k+s)} to n parties
-//!   - One round of double sharing of length ELL (over q' and mu')
+//!   1. 2^k PKE keygen (kpke::key_gen_2k)
+//!   2. Lifted additive sharing of the secret key over Z_{2^(k+s)} to n parties
 //!
-//! Threshold convention (active / dishonest-majority): t = n - 1. ALL n
-//! parties must participate at decryption time; the bench just sweeps over
-//! committee sizes n.
+//! Double sharing is EXCLUDED — it can be precomputed independently and
+//! benchmarked separately if needed; this bench focuses on the key-material
+//! pipeline (mirrors the passive branch's bench_keygen_sharing).
+//!
+//! Threshold convention (active / dishonest-majority): t = n - 1.
 //!
 //! Build & run:
 //!     cargo run --release --bin bench_keygen_sharing_active
@@ -18,41 +19,44 @@
 use std::hint::black_box;
 use std::time::{Duration, Instant};
 
-use Ladon::dealer_spdz::DealerSpdz;
+use Ladon::additive_ring::share_vector_lifted;
+use Ladon::additive_2k::SpdzParams;
+use Ladon::kpke;
 use Ladon::params::*;
 
 // ===========================================================================
 // ====== BENCH KNOBS — edit these ==========================================
 // ===========================================================================
 const N_LIST: &[usize] = &[4, 8, 16, 32];
-const K_BITS: u32 = 30;
 const S_BITS: u32 = 40;
 const P_PLAINTEXT: u128 = 2;
-const ELL: usize = 5;
 const ITERATIONS: usize = 100;
 const WARMUP: usize = 20;
 // ===========================================================================
 
 fn main() {
     println!("==================================================================");
-    println!("  Ladon Bench: Active (SPDZ2k) Keygen + Secret-Key + Double Sharing");
+    println!("  Ladon Bench: Active (SPDZ2k) Keygen + Secret-Key Sharing");
     println!("==================================================================");
     println!();
-    println!("  Offline phase per iteration:");
-    println!("    1. 2^k PKE keygen.");
-    println!("    2. Additive secret-key sharing (lifted to Z_{{2^(k+s)}}) across n parties.");
-    println!("    3. ell = {ELL} parallel double sharings over (q', mu').");
+    println!("  Per iteration:");
+    println!("    1. 2^k PKE keygen (kpke::key_gen_2k).");
+    println!("    2. Lifted additive secret-key sharing across n parties (Z_{{2^(k+s)}}).");
     println!();
-    println!("  Convention: t = n - 1 (dishonest majority; all n participate at decryption).");
+    println!("  Double sharing is excluded; it can be precomputed and benched separately.");
     println!();
-    run::<MlKem512>("MlKem512 (K=6)");
+    println!("  Convention: t = n - 1 (dishonest majority).");
+    println!();
+    run::<Ladon128>("Ladon128");
+    println!();
+    run::<Ladon256>("Ladon256");
     println!("==================================================================");
 }
 
 fn run<PARAMS: MlKemParams>(label: &str)
 where
-    [(); 384 * PARAMS::K + 32]:,
-    [(); 768 * PARAMS::K + 96]:,
+    [(); 960 * PARAMS::K + 32]:,
+    [(); 1920 * PARAMS::K + 96]:,
     [(); PARAMS::K]:,
     [(); PARAMS::ETA_1]:,
     [(); PARAMS::ETA_2]:,
@@ -60,14 +64,11 @@ where
     [(); 32 * (PARAMS::D_U * PARAMS::K + PARAMS::D_V)]:,
 {
     println!("------------------------------------------------------------------");
-    println!("  {label}");
+    println!("  {label}  (K = {})", PARAMS::K);
     println!("------------------------------------------------------------------");
-    println!("    K           : {}", PARAMS::K);
-    println!("    k_bits      : {K_BITS}    (q = 2^k)");
-    println!("    s_bits      : {S_BITS}   (lift width)");
-    println!("    p           : {P_PLAINTEXT}");
-    println!("    ell         : {ELL}");
-    println!("    warmup/iter : {WARMUP} / {ITERATIONS}");
+    println!("    k_bits / s_bits : {K_BITS} / {S_BITS}");
+    println!("    p               : {P_PLAINTEXT}");
+    println!("    warmup / iter   : {WARMUP} / {ITERATIONS}");
     println!();
     println!(
         "  {:>5}    {:>5}    {:>14}    {:>14}    {:>12}",
@@ -78,15 +79,16 @@ where
         "-----", "-----", "--------------", "--------------", "------------"
     );
 
+    let thr = SpdzParams::new(K_BITS, S_BITS, P_PLAINTEXT);
     for &n in N_LIST {
-        bench_one::<PARAMS>(n);
+        bench_one::<PARAMS>(n, &thr);
     }
 }
 
-fn bench_one<PARAMS: MlKemParams>(n: usize)
+fn bench_one<PARAMS: MlKemParams>(n: usize, thr: &SpdzParams)
 where
-    [(); 384 * PARAMS::K + 32]:,
-    [(); 768 * PARAMS::K + 96]:,
+    [(); 960 * PARAMS::K + 32]:,
+    [(); 1920 * PARAMS::K + 96]:,
     [(); PARAMS::K]:,
     [(); PARAMS::ETA_1]:,
     [(); PARAMS::ETA_2]:,
@@ -95,21 +97,17 @@ where
 {
     let t = n - 1;
 
-    // Warmup
     for _ in 0..WARMUP {
-        let dealer = DealerSpdz::new(n, K_BITS, S_BITS, P_PLAINTEXT);
-        let ks = dealer.generate_keypair::<PARAMS>();
-        let dbl = dealer.generate_double_sharing(ELL);
-        black_box((ks, dbl));
+        let (ek, sk) = kpke::key_gen_2k::<PARAMS>();
+        let sk_shares = share_vector_lifted::<{ PARAMS::K }>(&sk, n, thr);
+        black_box((ek, sk_shares));
     }
 
-    // Timed
     let start = Instant::now();
     for _ in 0..ITERATIONS {
-        let dealer = DealerSpdz::new(n, K_BITS, S_BITS, P_PLAINTEXT);
-        let ks = dealer.generate_keypair::<PARAMS>();
-        let dbl = dealer.generate_double_sharing(ELL);
-        black_box((ks, dbl));
+        let (ek, sk) = kpke::key_gen_2k::<PARAMS>();
+        let sk_shares = share_vector_lifted::<{ PARAMS::K }>(&sk, n, thr);
+        black_box((ek, sk_shares));
     }
     let total = start.elapsed();
     let avg = total / ITERATIONS as u32;

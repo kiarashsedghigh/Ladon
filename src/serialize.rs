@@ -1,18 +1,19 @@
-//! Trait implementations for serializing and deserializing ML-KEM structs
+//! Trait implementations for serializing and deserializing ML-KEM structs.
 //!
 //! Find examples on how to serialize / deserialize in the repo's or crate's README.md
 //!
-//! NOTE (modulus change q = 8380417): coefficients are 23-bit, so the
-//! *uncompressed* t / dk_pke rings are packed at 24 bits/coefficient
-//! (byte-aligned) instead of the old 12 bits. That makes one ring
-//! 256 * 24 / 8 = 768 bytes (was 384). The length constants below were
-//! updated accordingly:
-//!     per-ring bytes : 384      -> 768
-//!     ek  length     : 384*K+32 -> 768*K+32
-//!     dk_pke length  : 384*K    -> 768*K
-//!     dk  length     : 768*K+96 -> 1536*K+96
-//! Watch out: the literal `768` now means "one ring" (new), whereas the old
-//! `768` in `768*K+96` meant "two old rings". The new dk length is 1536*K+96.
+//! NOTE (modulus q = 2^30): coefficients are 30-bit, so the *uncompressed* t /
+//! dk_pke rings are packed at 30 bits/coefficient. One ring is therefore
+//! 256 * 30 / 8 = 960 bytes (256 * 30 = 7680 bits, byte-aligned at the ring
+//! level even though individual coefficients are not). Length constants:
+//!     per-ring bytes : 960            (= 256 * 30 / 8)
+//!     ek length      : 960*K + 32     bytes (t + rho)
+//!     dk_pke length  : 960*K          bytes (s)
+//!     dk length      : 1920*K + 96    bytes (dk_pke + ek + hash + z)
+//!
+//! Every byte_encode::<30> / byte_decode::<30> below is tied to params::Q
+//! being a 30-bit modulus. If Q changes width, update the bit width AND the
+//! length constants together.
 use crate::ring::*;
 use crate::mlkem::*;
 use bitvec::prelude::*;
@@ -54,13 +55,13 @@ pub trait MlKemDeserialize {
 
 impl<const K: usize> MlKemSerialize for MlKemEncapsulationKey<{K}> {
     fn serialize(&self) -> BitVec<u8, BitOrder> {
-        // ek = 768*K bytes of t (24 bits/coeff) + 32 bytes of rho
-        let mut bitvec = bitvec![u8, BitOrder; 0; 8 * (768 * K + 32)];
+        // ek = 960*K bytes of t (30 bits/coeff) + 32 bytes of rho
+        let mut bitvec = bitvec![u8, BitOrder; 0; 8 * (960 * K + 32)];
 
-        let (t_slice, rho_slice) = bitvec.split_at_mut(768 * K * 8);
+        let (t_slice, rho_slice) = bitvec.split_at_mut(960 * K * 8);
 
-        for (i, chunk) in t_slice.chunks_mut(768 * 8).enumerate() {
-            byte_encode::<24>(&self.0.data[i], chunk);
+        for (i, chunk) in t_slice.chunks_mut(960 * 8).enumerate() {
+            byte_encode::<30>(&self.0.data[i], chunk);
         }
 
         // Serialize rho into last 32 bytes
@@ -74,12 +75,12 @@ impl<const K: usize> MlKemSerialize for MlKemEncapsulationKey<{K}> {
 
 impl<const K: usize> MlKemDeserialize for MlKemEncapsulationKey<{K}> {
     fn deserialize(bitvec: &BitVec<u8, BitOrder>) -> Self {
-        // t occupies 256 * 24 * K bits.
-        let (t_slice, rho_slice) = bitvec.split_at(256 * 24 * K);
+        // t occupies 256 * 30 * K bits.
+        let (t_slice, rho_slice) = bitvec.split_at(256 * 30 * K);
 
         let mut t: Vector<K> = Vector::new_ntt();
-        for (i, ring) in t_slice.chunks(256 * 24).enumerate() {
-            t.data[i] = byte_decode::<24>(ring, RingRepresentation::NTT);
+        for (i, ring) in t_slice.chunks(256 * 30).enumerate() {
+            t.data[i] = byte_decode::<30>(ring, RingRepresentation::NTT);
         }
 
         let mut rho = [0u8; 32];
@@ -93,17 +94,17 @@ impl<const K: usize> MlKemDeserialize for MlKemEncapsulationKey<{K}> {
 
 impl<const K: usize> MlKemSerialize for MlKemDecapsulationKey<{K}> {
     fn serialize(&self) -> BitVec<u8, BitOrder> {
-        // dk = dk_pke (768*K) + ek (768*K + 32) + hash (32) + z (32)
-        //    = 1536*K + 96 bytes
-        let mut bitvec = bitvec![u8, BitOrder; 0; 8*(1536 * K + 96)];
-        let (dk_pke_slice, rest) = bitvec.split_at_mut(8*(768 * K));
-        let (ek_slice, rest) = rest.split_at_mut(8*(768 * K + 32));
+        // dk = dk_pke (960*K) + ek (960*K + 32) + hash (32) + z (32)
+        //    = 1920*K + 96 bytes
+        let mut bitvec = bitvec![u8, BitOrder; 0; 8*(1920 * K + 96)];
+        let (dk_pke_slice, rest) = bitvec.split_at_mut(8*(960 * K));
+        let (ek_slice, rest) = rest.split_at_mut(8*(960 * K + 32));
         let (hash_slice, z_slice) = rest.split_at_mut(8*32);
 
 
-        // Serialize dk_pke (24 bits/coeff -> 768 bytes per ring)
-        for (i, chunk ) in dk_pke_slice.chunks_mut(8 * 768).enumerate() {
-            byte_encode::<24>(&self.0.data[i], chunk);
+        // Serialize dk_pke (30 bits/coeff -> 960 bytes per ring)
+        for (i, chunk ) in dk_pke_slice.chunks_mut(8 * 960).enumerate() {
+            byte_encode::<30>(&self.0.data[i], chunk);
         }
 
         // Use our ek serialize implementation to get the serialized ek
@@ -125,13 +126,13 @@ impl<const K: usize> MlKemSerialize for MlKemDecapsulationKey<{K}> {
 
 impl<const K: usize> MlKemDeserialize for MlKemDecapsulationKey<{K}> {
     fn deserialize(bitvec: &BitVec<u8, BitOrder>) -> Self {
-        let (dk_pke_slice, rest) = bitvec.split_at(8*(768 * K));
-        let (ek_slice, rest) = rest.split_at(8*(768 * K + 32));
+        let (dk_pke_slice, rest) = bitvec.split_at(8*(960 * K));
+        let (ek_slice, rest) = rest.split_at(8*(960 * K + 32));
         let (hash_slice, z_slice) = rest.split_at(8*(32));
 
         let mut dk_pke = Vector::new_ntt();
-        for (i, chunk) in dk_pke_slice.chunks(8*768).enumerate() {
-            dk_pke.data[i] = byte_decode::<24>(chunk, RingRepresentation::NTT);
+        for (i, chunk) in dk_pke_slice.chunks(8*960).enumerate() {
+            dk_pke.data[i] = byte_decode::<30>(chunk, RingRepresentation::NTT);
         }
 
         let ek = MlKemEncapsulationKey::<{K}>::deserialize(&BitVec::from_bitslice(ek_slice));

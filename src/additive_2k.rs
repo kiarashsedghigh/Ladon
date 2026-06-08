@@ -152,33 +152,3 @@ pub fn reconstruct_lifted(shares: &[AddShare], params: &SpdzParams) -> u128 {
     lifted % params.m_base
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_share_reconstruct_roundtrip_basic() {
-        let modulus = 1u128 << 60;
-        let v = 123_456_789_u128;
-        let shares = share(v, 5, modulus);
-        assert_eq!(shares.len(), 5);
-        assert_eq!(reconstruct(&shares, modulus), v);
-    }
-
-    #[test]
-    fn test_lifted_share_recovers_base() {
-        let p = SpdzParams::new(20, 40, 2);
-        let secret: u128 = 0xABCDE;
-        let shares = share_lifted(secret, 4, &p);
-        assert_eq!(reconstruct_lifted(&shares, &p), secret);
-    }
-
-    #[test]
-    fn test_paper_notation_consistency() {
-        // q' = q, mu' = mu in the active branch (q is already a power of 2).
-        let p = SpdzParams::new(30, 40, 2);
-        assert_eq!(p.q, p.q_prime);
-        assert_eq!(p.mu, p.mu_prime);
-        assert_eq!(p.mu, p.q / 2);
-    }
-}

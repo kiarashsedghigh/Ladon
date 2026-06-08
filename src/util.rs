@@ -26,27 +26,3 @@ pub fn fastmodpow(base: u32, exp: u8) -> u32 {
     }
     result as u32
 }
-
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use crate::params::ZETA;
-//
-//     #[test]
-//     fn test_bitrev7() {
-//         assert_eq!(127, bitrev7(127));
-//         assert_eq!(1, bitrev7(64));
-//         assert_eq!(64, bitrev7(1));
-//         assert_eq!(0, bitrev7(0));
-//     }
-//
-//     #[test]
-//     fn test_fastmodpow() {
-//         // Expected values recomputed for ZETA = 1753 mod 8380417.
-//         assert_eq!(fastmodpow(ZETA, 1), ZETA);
-//         assert_eq!(fastmodpow(ZETA, 2), ZETA * ZETA); // 1753^2 = 3073009 < q, so no reduction
-//         assert_eq!(fastmodpow(ZETA, 10), 1528066);
-//         assert_eq!(fastmodpow(ZETA, 100), 3704823);
-//         assert_eq!(fastmodpow(ZETA, 255), 7648983);
-//     }
-// }

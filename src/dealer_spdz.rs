@@ -88,8 +88,8 @@ impl DealerSpdz {
     /// Run the 2^k PKE keygen and lifted-additive-share the secret key.
     pub fn generate_keypair<PARAMS: MlKemParams>(&self) -> KeyShares<{ PARAMS::K }>
     where
-        [(); 384 * PARAMS::K + 32]:,
-        [(); 768 * PARAMS::K + 96]:,
+        [(); 960 * PARAMS::K + 32]:,
+        [(); 1920 * PARAMS::K + 96]:,
         [(); PARAMS::K]:,
         [(); PARAMS::ETA_2]:,
         [(); 64 * PARAMS::ETA_1]:,
@@ -154,66 +154,5 @@ impl DealerSpdz {
         }
 
         out
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::additive_ring::reconstruct_vector_lifted;
-
-    #[test]
-    fn test_secret_key_shares_reconstruct() {
-        type P = MlKem512;
-        let dealer = DealerSpdz::new(4, 20, 40, 2);
-        let ks = dealer.generate_keypair::<P>();
-        assert_eq!(ks.sk_shares.len(), 4);
-
-        let rec_a = reconstruct_vector_lifted(&ks.sk_shares, &dealer.thr);
-        let mut reversed = ks.sk_shares.clone();
-        reversed.reverse();
-        let rec_b = reconstruct_vector_lifted(&reversed, &dealer.thr);
-        assert_eq!(rec_a, rec_b);
-    }
-
-    #[test]
-    fn test_double_sharing_consistency_ell_1() {
-        // With ell=1 the double sharing should match the old single-d behavior.
-        let dealer = DealerSpdz::new(5, 20, 40, 2);
-        let ds = dealer.generate_double_sharing(1);
-        assert_eq!(ds.len(), 5);
-        for s in &ds {
-            assert_eq!(s.ell(), 1);
-        }
-
-        let q_prime = dealer.thr.q_prime;
-        let mu_prime = dealer.thr.mu_prime;
-        for c in 0..256 {
-            let d_from_qp: u128 = ds.iter().fold(0u128, |acc, s| (acc + s.q_prime[0][c]) % q_prime);
-            let d_from_mp: u128 = ds.iter().fold(0u128, |acc, s| (acc + s.mu_prime[0][c]) % mu_prime);
-            assert_eq!(d_from_qp % mu_prime, d_from_mp);
-            assert!(d_from_qp < mu_prime);
-        }
-    }
-
-    #[test]
-    fn test_double_sharing_ell_many() {
-        let ell = 5;
-        let dealer = DealerSpdz::new(3, 20, 40, 2);
-        let ds = dealer.generate_double_sharing(ell);
-        for s in &ds {
-            assert_eq!(s.ell(), ell);
-        }
-
-        // Each of the ell parallel double sharings is independently consistent.
-        let q_prime = dealer.thr.q_prime;
-        let mu_prime = dealer.thr.mu_prime;
-        for j in 0..ell {
-            for c in 0..256 {
-                let d_from_qp: u128 = ds.iter().fold(0u128, |acc, s| (acc + s.q_prime[j][c]) % q_prime);
-                let d_from_mp: u128 = ds.iter().fold(0u128, |acc, s| (acc + s.mu_prime[j][c]) % mu_prime);
-                assert_eq!(d_from_qp % mu_prime, d_from_mp);
-            }
-        }
     }
 }

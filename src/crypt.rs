@@ -49,24 +49,6 @@ pub fn prf<const ETA: usize>(s: &[u8; 32], b: u8) -> [u8; 64 * ETA]
     res
 }
 
-// Optimization Attempt
-// pub fn prf_2(s: &[u8; 32], b: u8) -> [u32; 32]
-// {
-//     let mut hasher = Shake256::default();
-//     hasher.update(s);
-//     hasher.update(&[b]);
-    
-//     let mut reader = hasher.finalize_xof();
-    
-//     let mut res = U32U8Union { u32: [0u32; 32] };
-//     unsafe { 
-//         XofReader::read(&mut reader, &mut res.u8);
-//         res.u32
-//     }
-// }
-
-
-
 pub struct XOF {
     reader: XofReaderCoreWrapper<Shake128ReaderCore>
 }

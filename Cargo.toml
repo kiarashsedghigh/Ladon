@@ -21,8 +21,10 @@ harness = false
 name = "bench_tee"
 harness = false
 
-
 [[bench]]
 name = "bench_committee_local"
 harness = false
 
+[[bench]]
+name = "bench_encapsulation"
+harness = false

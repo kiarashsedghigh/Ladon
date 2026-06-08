@@ -4,18 +4,19 @@
 //! decryption (Steps 1-5 minus the open-broadcast round, which is network).
 //!
 //! Per party per iteration:
-//!   1. partial_decrypt  — linear inner product against the lifted key share,
-//!      mod-switch q -> q' (identity here since q = 2^k), isolate noise mod mu'.
-//!   2. mask             — add ell shares of the d_j poly to <e'>^{mu'}.
-//!   3. finalize         — given the (already opened) e_tilde_j, compute the
-//!      party's ell shares of (mu' * m)_j over Z_{q'}.
+//!   1. partial_decrypt — linear inner product against the lifted key share,
+//!      mod-switch q -> q' (identity since q = 2^k), isolate noise mod mu'.
+//!   2. mask            — add ell shares of d_j to <e'>^{mu'}.
+//!   3. finalize        — compute the party's ell shares of (mu' * m)_j over Z_{q'}.
 //!
-//! EXCLUDED (network rounds, not local compute):
-//!   - broadcasting masked shares and opening e_tilde_j,
-//!   - sending (mu' * m)_j shares to the TEE.
+//! EXCLUDED (network rounds):
+//!   - broadcast/open of e_tilde_j,
+//!   - sending final shares to the TEE.
 //!
-//! Convention: t = n - 1 (dishonest majority). SETUP_N is fixed because
-//! per-party local compute is essentially n-independent.
+//! Per-paramset ell (matches the demo and bench_tee).
+//!
+//! Convention: t = n - 1. SETUP_N is fixed because per-party local compute
+//! is essentially n-independent.
 //!
 //! Build & run:
 //!     cargo run --release --bin bench_committee_local_active
@@ -26,22 +27,23 @@
 use std::hint::black_box;
 use std::time::{Duration, Instant};
 
-use Ladon::dealer_spdz::DealerSpdz;
-use Ladon::kpke;
-use Ladon::params::*;
-use Ladon::party_spdz::PartySpdz;
-use Ladon::threshold_decrypt::{assemble_parties, open_e_tilde, threshold_decrypt};
-use Ladon::ring::{Compressed, Ring};
-use Ladon::serialize::{BitOrder, MlKemDeserialize};
-use Ladon::negacyclic::{decompress_ring_2k, decompress_vector_2k};
 use bitvec::view::BitView;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
+
+use Ladon::dealer_spdz::DealerSpdz;
+use Ladon::kpke;
+use Ladon::negacyclic::{decompress_ring_2k, decompress_vector_2k};
+use Ladon::params::*;
+use Ladon::party_spdz::PartySpdz;
+use Ladon::ring::{Compressed, Ring};
+use Ladon::serialize::{BitOrder, MlKemDeserialize};
+use Ladon::threshold_decrypt::{assemble_parties, open_e_tilde, threshold_decrypt};
 
 // ===========================================================================
 // ====== BENCH KNOBS — edit these ==========================================
 // ===========================================================================
-const ELL: usize = 5;
-const K_BITS: u32 = 30;
+const ELL_LADON128: usize = 5;
+const ELL_LADON256: usize = 32;
 const S_BITS: u32 = 40;
 const P_PLAINTEXT: u128 = 2;
 // Per-party local compute is essentially n-independent; pick a small n.
@@ -58,7 +60,7 @@ fn main() {
     println!("  Pipeline per iteration (one party):");
     println!("    1. partial_decrypt (Steps 1-3): linear inner product, mod switch,");
     println!("       isolate error.");
-    println!("    2. mask              (Step 4 local part): add ell d_j shares.");
+    println!("    2. mask              (Step 4 local): add ell d_j shares.");
     println!("    3. finalize          (Step 5): compute ell <mu'*m>^{{q'}} shares.");
     println!();
     println!("  EXCLUDED:");
@@ -67,14 +69,16 @@ fn main() {
     println!();
     println!("  Convention: t = n - 1 (dishonest majority).");
     println!();
-    run::<MlKem512>("MlKem512 (K=6)");
+    run::<Ladon128>("Ladon128", ELL_LADON128);
+    println!();
+    run::<Ladon256>("Ladon256", ELL_LADON256);
     println!("==================================================================");
 }
 
-fn run<PARAMS: MlKemParams>(label: &str)
+fn run<PARAMS: MlKemParams>(label: &str, ell: usize)
 where
-    [(); 384 * PARAMS::K + 32]:,
-    [(); 768 * PARAMS::K + 96]:,
+    [(); 960 * PARAMS::K + 32]:,
+    [(); 1920 * PARAMS::K + 96]:,
     [(); PARAMS::K]:,
     [(); PARAMS::ETA_1]:,
     [(); PARAMS::ETA_2]:,
@@ -83,22 +87,19 @@ where
     [(); 32 * (PARAMS::D_U * PARAMS::K + PARAMS::D_V)]:,
 {
     println!("------------------------------------------------------------------");
-    println!("  {label}");
+    println!("  {label}  (K = {}, ell = {ell})", PARAMS::K);
     println!("------------------------------------------------------------------");
-    println!("    K               : {}", PARAMS::K);
     println!("    k_bits / s_bits : {K_BITS} / {S_BITS}");
     println!("    p               : {P_PLAINTEXT}");
-    println!("    ell             : {ELL}");
-    println!("    n (fixed)       : {SETUP_N}    (per-party local compute is n-independent)");
+    println!("    n (fixed)       : {SETUP_N}    (per-party compute is n-independent)");
     println!("    warmup / iter   : {WARMUP} / {ITERATIONS}");
     println!();
 
     // ----- SETUP (untimed) -------------------------------------------------
     let dealer = DealerSpdz::new(SETUP_N, K_BITS, S_BITS, P_PLAINTEXT);
     let ks = dealer.generate_keypair::<PARAMS>();
-    let dbl = dealer.generate_double_sharing(ELL);
+    let dbl = dealer.generate_double_sharing(ell);
 
-    // Make a real ciphertext and decompress it.
     let mut rng = StdRng::from_entropy();
     let mut msg_bytes = [0u8; 32];
     rng.fill_bytes(&mut msg_bytes);
@@ -129,7 +130,7 @@ where
     // Sanity: protocol works end to end at this ELL.
     {
         let mu_m_shares = threshold_decrypt(&parties, &u_dec, &v_dec, &dealer.thr);
-        assert_eq!(mu_m_shares[0].len(), ELL);
+        assert_eq!(mu_m_shares[0].len(), ell);
         black_box(mu_m_shares);
     }
 

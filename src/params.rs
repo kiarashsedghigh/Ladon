@@ -1,11 +1,8 @@
-//! Parameter Sets and Constants
-//! 
-//! - **ML-KEM-512**: K = 2, ETA_1 = 3, ETA_2 = 2, D_U = 10, D_V = 4
-//! - **ML-KEM-768**: K = 3, ETA_1 = 2, ETA_2 = 2, D_U = 10, D_V = 4
-//! - **ML-KEM-1024**: K = 4, ETA_1 = 2, ETA_2 = 2, D_U = 11, D_V = 5
-//! 
-//! *Constants are only used internally, but N represents the size of a ring (256 elements), Q is the prime modulus (3329), ZETA is the primitive root of unity (17)*
-pub const N : usize = 256;
+//! Parameter sets for the Ladon active (SPDZ2k) branch.
+//!
+//! Q = 2^K_BITS is the PKE / ciphertext modulus. Power-of-two; q' = q in the
+//! mod-switch step (identity) since q is already a power of 2.
+pub const N: usize = 256;
 pub const K_BITS: u32 = 30;
 pub const Q: u32 = 1 << K_BITS;
 pub const Q32: u32 = 1 << K_BITS;
@@ -13,9 +10,8 @@ pub const Q64: u64 = 1 << K_BITS;
 
 use std::fmt;
 
-/// Trait for adding parameter values to the 3 parameter set structs.
-/// 
-/// You can make new functions generic over all 3 parameter sets by using this trait as a bound.
+/// Trait for adding parameter values to the Ladon parameter set structs.
+/// Make functions generic over all parameter sets by using this trait as a bound.
 pub trait MlKemParams {
     const K: usize;
     const ETA_1: usize;
@@ -24,8 +20,9 @@ pub trait MlKemParams {
     const D_V: usize;
 }
 
+/// Ladon parameter set at 128-bit computational security (paper Table 1).
+/// Module rank K = 6.
 pub struct Ladon128;
-
 impl MlKemParams for Ladon128 {
     const K: usize = 6;
     const ETA_1: usize = 2;
@@ -46,52 +43,27 @@ impl fmt::Debug for Ladon128 {
     }
 }
 
-
-
-
-
-
-
-
-pub struct MlKem512;
-impl MlKemParams for MlKem512 {
-    const K: usize = 6;
+/// Ladon parameter set at 256-bit computational security (paper Table 1).
+/// Module rank K = 10 (vs 6 for Ladon128).
+pub struct Ladon256;
+impl MlKemParams for Ladon256 {
+    const K: usize = 10;
     const ETA_1: usize = 2;
     const ETA_2: usize = 2;
     const D_U: usize = 28;
-    const D_V: usize = 23;
+    const D_V: usize = 26;
 }
 
-impl fmt::Debug for MlKem512 {
+impl fmt::Debug for Ladon256 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("MlKem512")
-            .field("K", &<MlKem512 as MlKemParams>::K)
-            .field("ETA_1", &<MlKem512 as MlKemParams>::ETA_1)
-            .field("ETA_2", &<MlKem512 as MlKemParams>::ETA_2)
-            .field("D_U", &<MlKem512 as MlKemParams>::D_U)
-            .field("D_V", &<MlKem512 as MlKemParams>::D_V)
+        f.debug_struct("Ladon256")
+            .field("K", &<Ladon256 as MlKemParams>::K)
+            .field("ETA_1", &<Ladon256 as MlKemParams>::ETA_1)
+            .field("ETA_2", &<Ladon256 as MlKemParams>::ETA_2)
+            .field("D_U", &<Ladon256 as MlKemParams>::D_U)
+            .field("D_V", &<Ladon256 as MlKemParams>::D_V)
             .finish()
     }
 }
 
-
-pub struct MlKem768;
-impl MlKemParams for MlKem768 {
-    const K: usize = 3;
-    const ETA_1: usize = 2;
-    const ETA_2: usize = 2;
-    const D_U: usize = 10;
-    const D_V: usize = 4;
-}
-
-pub struct MlKem1024;
-impl MlKemParams for MlKem1024 {
-    const K: usize = 4;
-    const ETA_1: usize = 2;
-    const ETA_2: usize = 2;
-    const D_U: usize = 11;
-    const D_V: usize = 5;
-}
-
-pub const ZETA: u32 = 3_073_009;      // was u16 = 17 — primitive 512th root of unity mod 8380417
-
+pub const ZETA: u32 = 3_073_009;
