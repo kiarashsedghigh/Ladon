@@ -37,8 +37,8 @@ use Ladon::threshold_decrypt::{assemble_parties, receiver_reconstruct, threshold
 // ===========================================================================
 const N_LIST: &[usize] = &[4, 8, 16, 32];
 const ELL_LADON128: usize = 5;
-const ELL_LADON256: usize = 32;
-const S_BITS: u32 = 40;
+const ELL_LADON256: usize = 7;
+const S_BITS: u32 = 36;
 const P_PLAINTEXT: u128 = 2;
 const ITERATIONS: usize = 1500;
 const WARMUP: usize = 200;

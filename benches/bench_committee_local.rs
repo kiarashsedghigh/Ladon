@@ -43,8 +43,8 @@ use Ladon::threshold_decrypt::{assemble_parties, open_e_tilde, threshold_decrypt
 // ====== BENCH KNOBS — edit these ==========================================
 // ===========================================================================
 const ELL_LADON128: usize = 5;
-const ELL_LADON256: usize = 32;
-const S_BITS: u32 = 40;
+const ELL_LADON256: usize = 7;
+const S_BITS: u32 = 36;
 const P_PLAINTEXT: u128 = 2;
 // Per-party local compute is essentially n-independent; pick a small n.
 const SETUP_N: usize = 4;

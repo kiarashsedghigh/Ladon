@@ -28,3 +28,7 @@ harness = false
 [[bench]]
 name = "bench_encapsulation"
 harness = false
+
+[[bench]]
+name = "net"
+harness = false

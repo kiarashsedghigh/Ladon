@@ -28,10 +28,10 @@ use Ladon::params::*;
 // ====== BENCH KNOBS — edit these ==========================================
 // ===========================================================================
 const N_LIST: &[usize] = &[4, 8, 16, 32];
-const S_BITS: u32 = 40;
+const S_BITS: u32 = 36;
 const P_PLAINTEXT: u128 = 2;
-const ITERATIONS: usize = 100;
-const WARMUP: usize = 20;
+const ITERATIONS: usize = 1000;
+const WARMUP: usize = 50;
 // ===========================================================================
 
 fn main() {
