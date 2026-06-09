@@ -97,7 +97,6 @@ def analyze_passive(params: MLWEPKEParams):
     print()
     print(f"|sk|: {sk_size} bytes")
     print(f"|sk_share|: {sk_share_size} bytes")
-    print(f"|mac_share| ... storage: {sk_share_size} bytes")  # // mac and sk shares are in the same domain
     print(f"|pk|: {pk_size} bytes")
     print(f"|c|: {cipher_size} bytes")
 
@@ -131,21 +130,6 @@ def analyze_passive(params: MLWEPKEParams):
         )
 
 
-
-
-
-#
-# N         = 256
-# q         = 687659009   (30 bits)
-# q-1       = 687659008 = 1343084 * 2N
-# psi       = 9586572        # primitive 2N-th root, psi^N = -1 mod q
-# psi^-1    = 557620952
-# omega     = 174453379      # primitive N-th root, = psi^2
-# omega^-1  = 216045524
-# N^-1      = 684972841
-
-
-
 if __name__ == "__main__":
 
     params_passive_128 = MLWEPKEParams(
@@ -168,30 +152,33 @@ if __name__ == "__main__":
         d=256,
     )
 
-    # analyze_passive(params_passive_128)
+    analyze_passive(params_passive_128)
     analyze_passive(params_passive_256)
 
 
-    # statistical_sec = 40
-    #
-    # params_active_128 = MLWEPKEParams(
-    #     q=1 << 30,
-    #     k=6,
-    #     eta1=2,
-    #     eta2=2,
-    #     du=28,
-    #     dv=23,
-    #     d=256,
-    # )
-    # params_active_256 = MLWEPKEParams(
-    #     q=1 << 30,
-    #     k=10,
-    #     eta1=2,
-    #     eta2=2,
-    #     du=28,
-    #     dv=26,
-    #     d=256,
-    # )
 
-    # analyze_active(params_active_128, statistical_sec)
-    # analyze_active(params_active_256_low_comm, statistical_sec)
+
+    params_active_128 = MLWEPKEParams(
+        q=1 << 30,
+        k=6,
+        eta1=2,
+        eta2=2,
+        du=28,
+        dv=23,
+        d=256,
+    )
+    analyze_active(params_active_128, 36)
+
+
+    params_active_256 = MLWEPKEParams(
+        q=1 << 30,
+        k=10,
+        eta1=2,
+        eta2=2,
+        du=28,
+        dv=26,
+        d=256,
+    )
+
+
+    analyze_active(params_active_256, 45)

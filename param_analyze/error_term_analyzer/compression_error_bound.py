@@ -19,7 +19,8 @@ from concurrent.futures import ProcessPoolExecutor
 from functools import partial
 import multiprocessing
 
-from analyze.error_term_analyzer.probability_distribution import *
+from error_term_analyzer.probability_distribution import *
+
 
 
 # =============================================================================

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from analyze.error_term_analyzer.compression_error_bound import *
-from analyze.error_term_analyzer.probability_distribution import *
-from analyze.parameter_selection.param_set import MLWEPKEParams
+from error_term_analyzer.compression_error_bound import *
+from error_term_analyzer.probability_distribution import *
+from parameter_selection.param_set import MLWEPKEParams
 
 
 def _print_total_error_bound(total_error_coeff, error_bound, d):

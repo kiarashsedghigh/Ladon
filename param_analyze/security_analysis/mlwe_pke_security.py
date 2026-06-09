@@ -11,8 +11,9 @@ References:
 
 from __future__ import annotations
 
+from .estimator import *
 from .estimator.lwe_parameters import LWEParameters
-from analyze.parameter_selection.param_set import MLWEPKEParams
+from parameter_selection.param_set import MLWEPKEParams
 
 def compute_mlwe_pke_security_level(params: MLWEPKEParams) -> dict:
     """
@@ -62,11 +63,11 @@ def compute_mlwe_pke_security_level(params: MLWEPKEParams) -> dict:
     lwe_instance = LWEParameters(
         n=params.k * params.d,  # Total dimension: module dimension * polynomial degree
         q=params.q,  # Scheme modulus
-        Xs=nd.CenteredBinomial(params.eta1),  # Secret distribution (centered binomial)
-        Xe=nd.CenteredBinomial(params.eta1),  # Error distribution (centered binomial)
+        Xs=ND.CenteredBinomial(params.eta1),  # Secret distribution (centered binomial)
+        Xe=ND.CenteredBinomial(params.eta1),  # Error distribution (centered binomial)
         m=params.k * params.d,  # Number of equations (square LWE system)
     )
 
     # Run security estimation against known lattice attacks.
     # This performs a rough analysis of the security level.
-    return lwe.estimate.rough(lwe_instance)
+    return LWE.estimate.rough(lwe_instance)
