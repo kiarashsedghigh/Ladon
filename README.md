@@ -38,14 +38,17 @@ ladon/
 │                  SPDZ₂ₖ authenticated additive sharing in the
 │                  dishonest-majority setting.
 │
-└── README.md      This file.
+├── param_analyze/  Set of scripts for analyzing the parameter 
+│                   selection of Ladon, including its underlying
+│                   KEM's security, noise analysis, and threshold
+│                   performance (e.g., sucess aimplification).
 ```
 
 Each variant is a self-contained Rust crate with its own `Cargo.toml`, source tree, demos, and benchmarks. They share the same high-level protocol structure (KMS Committee Provision, Owner Asset Key Wrapping, KMS Distributed Decryption, TEE Asset Key Derivation) and the same parameter sets (Ladon128 and Ladon256), but differ in the underlying secret-sharing scheme and ring arithmetic as described above.
 
 ## Reviewer Instructions
 
-To reproduce the results reported in the paper, please review each variant separately. Each subdirectory contains a dedicated `README.md` with build instructions, demo entry points, and benchmark commands.
+To run each instance:
 
 1. **Semi-honest variant.**
    ```bash
@@ -61,3 +64,4 @@ To reproduce the results reported in the paper, please review each variant separ
 
 The two crates are independent; they can be built and benchmarked in either order.
 
+For the scheme analysis, see `param_analyze/README.md`.
