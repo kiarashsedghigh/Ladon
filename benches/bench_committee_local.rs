@@ -48,7 +48,7 @@ const S_BITS: u32 = 36;
 const P_PLAINTEXT: u128 = 2;
 // Per-party local compute is essentially n-independent; pick a small n.
 const SETUP_N: usize = 4;
-const ITERATIONS: usize = 1500;
+const ITERATIONS: usize = 4000;
 const WARMUP: usize = 200;
 // ===========================================================================
 
