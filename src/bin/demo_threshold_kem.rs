@@ -28,7 +28,7 @@ use Ladon::params::*;
 use Ladon::party::Party;
 use Ladon::ring::{Compressed, Ring};
 use Ladon::serialize::{BitOrder, MlKemDeserialize, MlKemSerialize};
-use Ladon::shamir_ring::reconstruct_vector;
+use Ladon::shamir_poly_ring::reconstruct_vector;
 use Ladon::threshold::{assemble_parties, receiver_reconstruct, threshold_decrypt};
 
 // ===========================================================================

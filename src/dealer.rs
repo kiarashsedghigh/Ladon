@@ -28,7 +28,7 @@
 use crate::kpke;
 use crate::params::*;
 use crate::ring::Vector;
-use crate::shamir_ring::{self, VectorShare};
+use crate::shamir_poly_ring::{self, VectorShare};
 
 use rand::{Rng, SeedableRng};
 use rand::rngs::StdRng;
@@ -171,7 +171,7 @@ impl Dealer {
             kpke::key_gen::<PARAMS>();
 
         // Share s directly in NTT form (Shamir is F_q-linear, commutes w/ NTT).
-        let sk_shares = shamir_ring::share_vector::<{ PARAMS::K }>(&s, self.t, self.n);
+        let sk_shares = shamir_poly_ring::share_vector::<{ PARAMS::K }>(&s, self.t, self.n);
 
         KeyShares { ek, sk_shares }
     }

@@ -29,7 +29,7 @@ use crate::dealer::{DoubleShare, ThrParams};
 use crate::params;
 use crate::ring::{Ring, RingRepresentation, Vector};
 use crate::shamir;
-use crate::shamir_ring::VectorShare;
+use crate::shamir_poly_ring::VectorShare;
 
 /// A party in the threshold-decryption committee.
 pub struct Party<const K: usize> {

@@ -12,7 +12,7 @@ pub mod serialize;
 pub mod kpke;
 pub mod mlkem;
 pub mod shamir;
-pub mod shamir_ring;
+pub mod shamir_poly_ring;
 pub mod dealer;
 pub mod party;
 pub mod threshold;

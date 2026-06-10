@@ -21,7 +21,7 @@
 
 use crate::dealer::{DoubleShare, ThrParams};
 use crate::party::Party;
-use crate::shamir_ring::VectorShare;
+use crate::shamir_poly_ring::VectorShare;
 
 /// Reconstruct the ell public e_tilde_j = e' + d_j (mod mu') by summing the
 /// parties' masked shares for each j independently. `masked_shares[i]` is
