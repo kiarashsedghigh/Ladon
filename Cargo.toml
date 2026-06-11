@@ -32,3 +32,8 @@ harness = false
 [[bench]]
 name = "net"
 harness = false
+
+
+[[bench]]
+name = "bench_ds"
+harness = false
