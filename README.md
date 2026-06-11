@@ -1,8 +1,6 @@
 ![Logo](logo.png)
 <h1 align="center">Ladon - Decentralizing Key Management Service via a Threshold KEM</h1>
-<p align="center">
-  <strong>A ML-KEM based PQ-secure Threshold KEM</strong>
-</p>
+
 <p align="center">
   <a href="#overview">Overview</a> ·
   <a href="#repository-structure">Structure</a> ·
