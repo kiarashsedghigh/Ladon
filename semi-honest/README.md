@@ -1,4 +1,4 @@
-# Ladon — Semi-Honest (Passive) Variant
+# Ladon - Semi-Honest (Passive) Variant
 
 This crate implements the **semi-honest variant** of Ladon: honest-majority
 threshold KEM (`n = 2t + 1`) over a prime modulus, using Shamir secret sharing

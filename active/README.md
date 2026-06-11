@@ -1,4 +1,4 @@
-# Ladon — Active (Malicious-Secure) Variant
+# Ladon - Active (Malicious-Secure) Variant
 
 This crate implements the **active-security variant** of Ladon: dishonest-majority
 threshold KEM (`t = n − 1`) over the power-of-two modulus `q = 2^30`, using
