@@ -21,7 +21,7 @@ scratch in this crate.
 
 ## Build and run
 
-Requires **nightly Rust** (uses `feature(generic_const_exprs)`):
+Requires **nightly Rust (1.94 at least)** (uses `feature(generic_const_exprs)`):
 
 ```bash
 rustup default nightly
