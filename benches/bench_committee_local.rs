@@ -1,16 +1,19 @@
 //! Bench: Ladon KBS Committee Local Computation (per-party, no network).
 //!
-//! Times the local compute each KBS authority performs during distributed
-//! decryption (Figure 2 of the paper). Network rounds (opening, sending
-//! to TEE) are intentionally excluded - they would dominate end-to-end
-//! latency but are not "compute cost".
+//! Times the local compute each KBS committee member performs during
+//! distributed decryption. Network rounds (opening, sending to TEE) are
+//! intentionally excluded — they would dominate end-to-end latency but
+//! are not "compute cost".
 //!
-//! Threshold convention: t = THRESHOLD = min-to-decrypt. Polynomial degree
-//! = t - 1. SETUP_T is fixed because per-party cost is essentially
-//! t-independent (partial_decrypt is a constant K-ring inner product).
+//! Threshold convention:
+//!   t = SETUP_T = active-committee size = min-to-decrypt. The dealer
+//!   creates t additive double shares and n Shamir key shares (any t
+//!   reconstruct sk). Per-party compute cost is essentially t-independent
+//!   (partial_decrypt is a constant K-ring inner product), so SETUP_T is
+//!   fixed.
 //!
 //! Ell is fixed per security level (matching the demo and bench_tee), not
-//! swept - the per-party cost is the SUM of:
+//! swept — the per-party cost is the SUM of:
 //!   - partial_decrypt: ell-independent, dominant.
 //!   - mask + finalize: linear in ell, small.
 //! Each security level runs once at its target ell.
@@ -38,10 +41,10 @@ const ELL_LADON128: usize = 31;
 const ELL_LADON256: usize = 31;
 
 const P_PLAINTEXT: u64 = 2;
-// Threshold convention: t = min-to-decrypt. Polynomial degree = t-1.
-// SETUP_T is fixed because per-party cost is essentially t-independent.
+// SETUP_T = active-committee size = min-to-decrypt. Fixed because per-party
+// cost is essentially t-independent.
 const SETUP_T: usize = 4;
-const SETUP_N: usize = 9;        // satisfies SETUP_T < SETUP_N / 2
+const SETUP_N: usize = 9;        // n >= t; satisfies SETUP_T <= SETUP_N
 const ITERATIONS: usize = 5000;
 const WARMUP: usize = 500;
 // ===========================================================================
@@ -52,18 +55,18 @@ fn main() {
     println!("==================================================================");
     println!();
     println!("  What this bench measures:");
-    println!("    For one KBS party, the local compute spent on a single");
-    println!("    decryption request. The pipeline per iteration is:");
+    println!("    For one KBS committee member, the local compute spent on a");
+    println!("    single decryption request. The pipeline per iteration is:");
     println!("      1. partial_decrypt - inner product against the local secret-");
-    println!("         key share, mod-switch from q to eta, isolate noise mod Phi.");
+    println!("         key share, mod-switch from q to q', isolate noise mod mu'.");
     println!("      2. mask            - add the party's ell shares of the");
     println!("         masking polynomial r to its e' share.");
-    println!("      3. finalize        - given the (already opened) v = e' + r,");
-    println!("         compute the party's ell shares of Phi * m.");
+    println!("      3. finalize        - given the (already opened) e_tilde,");
+    println!("         compute the party's ell shares of mu' * m.");
     println!();
     println!("  EXCLUDED (these are network rounds, not local compute):");
-    println!("      - broadcasting v shares and reconstructing v = e' + r,");
-    println!("      - sending the (Phi * m) shares to the TEE.");
+    println!("      - broadcasting masked shares and reconstructing e_tilde,");
+    println!("      - sending the (mu' * m) shares to the TEE.");
     println!();
     println!("  Per-party cost is essentially t-independent (partial_decrypt is");
     println!("  a constant K-ring inner product). Mask + finalize loop over ell");
@@ -71,7 +74,7 @@ fn main() {
     println!("  partial_decrypt. Multiply avg/op by t for the aggregate sequential");
     println!("  committee compute on a single machine.");
     println!();
-    println!("  Convention: t = min-to-decrypt.");
+    println!("  Convention: t = active-committee size = min-to-decrypt.");
     println!();
     run::<Ladon128>("Ladon128", ELL_LADON128);
     println!();
@@ -101,29 +104,29 @@ where
     println!("    q     (ring modulus)        : {Q}");
     println!("    N     (ring degree)         : 256");
     println!("    p     (plaintext modulus)   : {P_PLAINTEXT}");
-    println!("    t / n                       : {SETUP_T} / {SETUP_N}    (t = min-to-decrypt)");
+    println!("    t / n                       : {SETUP_T} / {SETUP_N}    (t = active committee)");
     println!("    ell   (parallel sharings)   : {ell}");
     println!("    warmup / timed iterations   : {WARMUP} / {ITERATIONS}");
     println!();
 
     // ===== SETUP (untimed) ================================================
-    // SETUP_T = min-to-decrypt; polynomial degree = SETUP_T - 1.
-    let dealer = Dealer::new(SETUP_T - 1, SETUP_N, P_PLAINTEXT);
+    // SETUP_T = active-committee size. Dealer creates SETUP_T additive double
+    // shares (one per active member) and SETUP_N Shamir key shares.
+    let dealer = Dealer::new(SETUP_T, SETUP_N, P_PLAINTEXT);
     let ks = dealer.generate_keypair::<PARAMS>();
     let dbl = dealer.generate_double_sharing(ell);
 
     let (_key_b, c) = mlkem::encaps::<PARAMS>(ks.ek.clone());
 
-    // Active committee = first SETUP_T parties (smallest decrypting set).
+    // Active committee is implicit (first SETUP_T parties).
     // parties[0] has the smallest Shamir x-value (= 1), so it is the
     // v-holder; we'll time parties[1] (a non-v-holder).
-    let active: Vec<usize> = (0..SETUP_T).collect();
     let parties: Vec<Party<{ PARAMS::K }>> =
-        assemble_parties::<{ PARAMS::K }>(&ks.sk_shares, &dbl, &active, dealer.thr);
+        assemble_parties::<{ PARAMS::K }>(&ks.sk_shares, &dbl, dealer.thr);
     let active_ids: Vec<u32> = parties.iter().map(|p| p.id).collect();
     let v_holder_id = *active_ids.iter().min().expect("need >=1 party");
 
-    // Precompute the opened v_j (simulating the network round once).
+    // Precompute the opened e_tilde (simulating the network round once).
     let step1_all: Vec<_> = parties
         .iter()
         .map(|p| {
@@ -140,13 +143,13 @@ where
         .zip(step1_all.iter())
         .map(|(p, out)| p.mask(&out.e_prime))
         .collect();
-    let v_opened: Vec<[u64; 256]> = open_v(&masked_all, &dealer.thr);
+    let e_tilde_opened: Vec<[u64; 256]> = open_v(&masked_all, &dealer.thr);
 
     // Sanity: end-to-end protocol still works for this ell.
     {
-        let phi_m_shares = threshold_decrypt(&parties, c.clone(), &dealer.thr);
-        assert_eq!(phi_m_shares[0].len(), ell);
-        black_box(phi_m_shares);
+        let mu_m_shares = threshold_decrypt(&parties, c.clone(), &dealer.thr);
+        assert_eq!(mu_m_shares[0].len(), ell);
+        black_box(mu_m_shares);
     }
 
     let target = &parties[1]; // non-v-holder (common case)
@@ -155,14 +158,14 @@ where
 
     // ===== WARMUP =========================================================
     for _ in 0..WARMUP {
-        let k = local_pipeline::<PARAMS>(target, &c, &active_ids, &dealer.thr, &v_opened, is_holder);
+        let k = local_pipeline::<PARAMS>(target, &c, &active_ids, &dealer.thr, &e_tilde_opened, is_holder);
         black_box(k);
     }
 
     // ===== TIMED LOOP =====================================================
     let start = Instant::now();
     for _ in 0..ITERATIONS {
-        let k = local_pipeline::<PARAMS>(target, &c, &active_ids, &dealer.thr, &v_opened, is_holder);
+        let k = local_pipeline::<PARAMS>(target, &c, &active_ids, &dealer.thr, &e_tilde_opened, is_holder);
         black_box(k);
     }
     let total = start.elapsed();
@@ -180,7 +183,7 @@ fn local_pipeline<PARAMS: MlKemParams>(
     c: &Ladon::mlkem::MlKemCyphertext<{ PARAMS::K }, { PARAMS::D_U }, { PARAMS::D_V }>,
     active_ids: &[u32],
     thr: &ThrParams,
-    v_opened: &[[u64; 256]],
+    e_tilde_opened: &[[u64; 256]],
     is_holder: bool,
 ) -> Vec<[u64; 256]>
 where
@@ -201,7 +204,7 @@ where
     let masked = party.mask(&step1.e_prime);
     black_box(&masked);
 
-    party.finalize(&step1.w_prime, v_opened, is_holder)
+    party.finalize(&step1.w_prime, e_tilde_opened, is_holder)
 }
 
 fn format_duration(d: Duration) -> String {
