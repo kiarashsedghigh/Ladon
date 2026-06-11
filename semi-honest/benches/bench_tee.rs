@@ -1,12 +1,12 @@
 //! Bench: Ladon TEE Asset Key Derivation (Algorithm 3 of the paper).
 //!
 //! Times the TEE-local work that runs AFTER the KBS committee has produced
-//! its per-party (Phi*m)_j shares. That is:
+//! its per-party (mu'*m)_j shares. That is:
 //!
-//!     phi_m_shares (input, from committee)
+//!     mu_m_shares (input, from committee)
 //!         |
 //!         v
-//!     receiver_reconstruct  (Step 4 + ell-fold majority decoding -> m_bytes)
+//!     receiver_reconstruct  (Step 6 + ell-fold majority decoding -> m_bytes)
 //!         |
 //!         v
 //!     FO finalization:
@@ -18,11 +18,11 @@
 //!     asset key K_A
 //!
 //! Threshold convention (matches the demo):
-//!   t = THRESHOLD = the minimum size of a decrypting set.
-//!     - any t (or more) parties can cooperate to decrypt.
-//!     - any t-1 cannot.
-//!   Shamir polynomial degree = t-1, so Dealer::new takes THRESHOLD - 1.
-//!   The committee size n = 2t + 1 (smallest n satisfying t < n/2).
+//!   t = THRESHOLD = active-committee size = min-to-decrypt.
+//!     - The first t parties (ids 1..=t) form the active committee.
+//!     - Dealer creates t additive double sharings, one per committee member.
+//!     - Dealer also creates n Shamir key shares (any t reconstruct sk),
+//!       providing offline robustness. Here n = 2t + 1.
 //!
 //! Build & run:
 //!     cargo run --release --bin bench_tee
@@ -69,7 +69,7 @@ fn main() {
     println!("    The TEE-local work performed inside the enclave AFTER the KBS");
     println!("    committee has finished its distributed protocol. Each timed");
     println!("    iteration runs:");
-    println!("      1. receiver_reconstruct  - sum the per-party (Phi*m) shares");
+    println!("      1. receiver_reconstruct  - sum the per-party (mu'*m) shares");
     println!("                                  across the committee, decode each");
     println!("                                  of the ell candidates, and take");
     println!("                                  the coefficient-wise majority to");
@@ -83,11 +83,11 @@ fn main() {
     println!("      - The committee's distributed protocol (bench_committee_local).");
     println!("      - The asset owner's encaps             (bench_encapsulation).");
     println!();
-    println!("    phi_m_shares is produced ONCE in setup by running the full");
+    println!("    mu_m_shares is produced ONCE in setup by running the full");
     println!("    committee protocol; the same buffer is reused for every timed");
     println!("    iteration.");
     println!();
-    println!("  Convention: t = min-to-decrypt. n = 2t + 1.");
+    println!("  Convention: t = active-committee size = min-to-decrypt. n = 2t + 1.");
     println!();
     run::<Ladon128>("Ladon128", ELL_LADON128);
     println!();
@@ -128,12 +128,12 @@ where
     println!("    warmup / timed iterations   : {WARMUP} / {ITERATIONS}");
     println!();
     println!(
-        "  {:>5}  {:>5}  {:>8}    {:>14}    {:>14}    {:>12}",
-        "t", "n", "|active|", "total", "avg/op", "ops/sec"
+        "  {:>5}  {:>5}    {:>14}    {:>14}    {:>12}",
+        "t", "n", "total", "avg/op", "ops/sec"
     );
     println!(
-        "  {:>5}  {:>5}  {:>8}    {:>14}    {:>14}    {:>12}",
-        "---", "---", "--------", "--------------", "--------------", "------------"
+        "  {:>5}  {:>5}    {:>14}    {:>14}    {:>12}",
+        "---", "---", "--------------", "--------------", "------------"
     );
 
     for &t in THRESHOLDS {
@@ -154,8 +154,10 @@ where
     [(); 32 * (PARAMS::D_U * PARAMS::K + PARAMS::D_V)]:,
 {
     // ===== SETUP (untimed) ================================================
-    // t = min-to-decrypt; polynomial degree = t - 1.
-    let dealer = Dealer::new(t - 1, n, P_PLAINTEXT);
+    // t = active-committee size = min-to-decrypt. Dealer creates t additive
+    // double shares and n Shamir key shares (polynomial degree t-1, computed
+    // internally by Dealer::new).
+    let dealer = Dealer::new(t, n, P_PLAINTEXT);
     let ks = dealer.generate_keypair::<PARAMS>();
     let dbl = dealer.generate_double_sharing(ell);
 
@@ -165,17 +167,17 @@ where
 
     let (_key_b, c) = mlkem::encaps::<PARAMS>(ek.clone());
 
-    // Active committee = first t parties (smallest decrypting set).
-    let active: Vec<usize> = (0..t).collect();
+    // Active committee is implicit (first t parties). assemble_parties pairs
+    // the first t Shamir shares with the t additive double shares.
     let parties: Vec<Party<{ PARAMS::K }>> =
-        assemble_parties::<{ PARAMS::K }>(&ks.sk_shares, &dbl, &active, dealer.thr);
+        assemble_parties::<{ PARAMS::K }>(&ks.sk_shares, &dbl, dealer.thr);
 
-    let phi_m_shares = threshold_decrypt(&parties, c.clone(), &dealer.thr);
+    let mu_m_shares = threshold_decrypt(&parties, c.clone(), &dealer.thr);
 
     // ===== WARMUP =========================================================
     for _ in 0..WARMUP {
         let _ = tee_pipeline::<PARAMS>(
-            &phi_m_shares,
+            &mu_m_shares,
             &dealer.thr,
             ek.clone(),
             hash,
@@ -188,7 +190,7 @@ where
     let start = Instant::now();
     for _ in 0..ITERATIONS {
         let k = tee_pipeline::<PARAMS>(
-            &phi_m_shares,
+            &mu_m_shares,
             &dealer.thr,
             ek.clone(),
             hash,
@@ -202,10 +204,9 @@ where
     let ops_per_sec = ITERATIONS as f64 / total.as_secs_f64();
 
     println!(
-        "  {:>5}  {:>5}  {:>8}    {:>14}    {:>14}    {:>12.2}",
+        "  {:>5}  {:>5}    {:>14}    {:>14}    {:>12.2}",
         t,
         n,
-        active.len(),
         format_duration(total),
         format_duration(avg),
         ops_per_sec
@@ -214,7 +215,7 @@ where
 
 #[inline(never)]
 fn tee_pipeline<PARAMS: MlKemParams>(
-    phi_m_shares: &[Vec<[u64; 256]>],
+    mu_m_shares: &[Vec<[u64; 256]>],
     thr: &Ladon::dealer::ThrParams,
     ek: MlKemEncapsulationKey<{ PARAMS::K }>,
     hash: [u8; 32],
@@ -230,7 +231,7 @@ where
     [(); 64 * PARAMS::ETA_2]:,
     [(); 32 * (PARAMS::D_U * PARAMS::K + PARAMS::D_V)]:,
 {
-    let m_bytes: [u8; 32] = receiver_reconstruct(phi_m_shares, thr);
+    let m_bytes: [u8; 32] = receiver_reconstruct(mu_m_shares, thr);
 
     let m: Compressed<1, Ring> =
         Compressed::<1, Ring>::deserialize(&m_bytes.view_bits::<BitOrder>().to_bitvec());

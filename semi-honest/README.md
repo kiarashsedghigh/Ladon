@@ -1,4 +1,4 @@
-# Ladon - Semi-Honest (Passive) Variant
+# Ladon — Semi-Honest (Passive) Variant
 
 This crate implements the **semi-honest variant** of Ladon: honest-majority
 threshold KEM (`n = 2t + 1`) over a prime modulus, using Shamir secret sharing
@@ -17,7 +17,7 @@ is implemented from scratch in this crate.
 
 ## Build and run
 
-Requires **nightly Rust (1.94 at least)** (uses `feature(generic_const_exprs)`):
+Requires **nightly Rust** (uses `feature(generic_const_exprs)`):
 
 ```bash
 rustup default nightly
