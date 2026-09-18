@@ -88,7 +88,7 @@ where
     let ops_per_sec = ITERATIONS as f64 / total.as_secs_f64();
 
     println!("    total    : {}", format_duration(total));
-    println!("    avg / op : {}", format_duration(avg));
+    println!("    avg / encpas : {}", format_duration(avg));
     println!("    ops / sec: {ops_per_sec:.2}");
 }
 
