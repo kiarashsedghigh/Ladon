@@ -30,13 +30,13 @@ cargo bench --bench encapsulation
 ```
 and compare the `avg/encpas` with the first column of Table 2.
 
-### Reproduce Table 7 (computation)
+### Reproduce Table 6 (computation)
 
 You should run:
 ```
 cargo bench --bench kmstee
 ```
-and compare the `sum` with the columns of Table 10 based on the parameter `t` for each security level.
+and compare the `sum` with the columns of Table 6 based on the parameter `t` for each security level.
 
 
 
