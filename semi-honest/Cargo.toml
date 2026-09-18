@@ -21,19 +21,19 @@ sha3     = "0.10.8"
 # =============================================================================
 
 [[bench]]
-name    = "bench_keygen_sharing"
+name    = "keygen_sharing"
 harness = false
 
 [[bench]]
-name    = "bench_encapsulation"
+name    = "encapsulation"
 harness = false
 
 [[bench]]
-name    = "bench_committee_local"
+name    = "committee_local"
 harness = false
 
 [[bench]]
-name    = "bench_tee"
+name    = "tee"
 harness = false
 
 [[bench]]
@@ -41,5 +41,5 @@ name    = "net"
 harness = false
 
 [[bench]]
-name    = "bench_ds"
+name    = "ds"
 harness = false

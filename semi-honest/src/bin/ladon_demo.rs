@@ -130,7 +130,7 @@ where
     assert!(THRESHOLD >= 2, "THRESHOLD must be >= 2");
     assert!(N_PARTIES >= THRESHOLD, "N_PARTIES must be >= THRESHOLD");
 
-    println!("------------------------------------------------------------------");
+    println!("\n\n------------------------------------------------------------------");
     println!("  {label} parameter set");
     println!("------------------------------------------------------------------");
     println!("  Lattice parameters:");
