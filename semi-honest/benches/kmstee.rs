@@ -86,7 +86,7 @@ fn main() {
     println!("                       security level at t = {SETUP_T}, n = {SETUP_N}).");
     println!("    tee/op          : bench_tee avg / op");
     println!("                      (TEE asset-key derivation, swept over t).");
-    println!("    sum             : committee/party + tee/op.");
+    println!("    total           : committee/party + tee/op.");
     println!();
     println!("  No source parameters or timed logic were modified; only the two");
     println!("  numbers are combined into one table.");
@@ -137,7 +137,7 @@ where
 
     println!(
         "  {:>5}  {:>5}    {:>16}    {:>16}    {:>16}",
-        "t", "n", "committee/party", "tee/op", "sum"
+        "t", "n", "committee/party", "tee/op", "total"
     );
     println!(
         "  {:>5}  {:>5}    {:>16}    {:>16}    {:>16}",
