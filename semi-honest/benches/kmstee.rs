@@ -25,8 +25,8 @@
 //! columns) is new.
 //!
 //! Build & run:
-//!     cargo bench --bench combined
-//!     cargo run --release --bin bench_combined
+//!     cargo bench --bench kmstee
+//!     cargo run --release --bin bench_kmstee
 
 #![allow(incomplete_features)]
 #![feature(generic_const_exprs)]

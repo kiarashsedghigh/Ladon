@@ -45,5 +45,5 @@ name    = "ds"
 harness = false
 
 [[bench]]
-name    = "combined"
+name    = "kmstee"
 harness = false
