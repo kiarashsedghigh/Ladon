@@ -1,35 +1,55 @@
-# Ladon - Active (Malicious-Secure) Variant
+# Ladon - Semi-Honest
 
-This crate implements the **active-security variant** of Ladon: dishonest-majority
-threshold KEM (`t = n − 1`) over the power-of-two modulus `q = 2^30`, using
-SPDZ₂ₖ authenticated additive secret sharing and dense negacyclic
-matrix-vector polynomial multiplication.
+## Set the Toolchain
 
-## Underlying ML-KEM library
+Ladon requires **Rust nightly 1.94 or later** because it uses the unstable `generic_const_exprs` feature.
 
-The underlying functionality is built on the very efficient Rust
-implementation of the ML-KEM: [KEMKEM](https://github.com/conorpo/kemkem).
-
-We retarget it to a power-of-two modulus `q = 2^30` (see `params.rs`),
-which is required by the SPDZ₂ₖ threshold protocol (paper §4.5). Because
-the NTT does not apply over a power-of-two modulus, ring multiplication is
-implemented as a dense negacyclic matrix-vector product using Rust's
-native `i128` type and the `ndarray` crate. All threshold and MPC
-machinery (SPDZ₂ₖ sharing with the lift to `Z_{2^(k+s)}`, dealer, party
-operations, double sharings, `receiver_reconstruct`) is implemented from
-scratch in this crate.
-
-## Build and run
-
-Requires **nightly Rust (1.94 at least)** (uses `feature(generic_const_exprs)`):
+Set the default Rust toolchain to nightly:
 
 ```bash
 rustup default nightly
 ```
 
-### Demos
+## Full Demo
+
+Run the Ladon's demo where `(t, n) = (4, 9)` committee with a TEE (here a trusted system only) is used for performing a threshold decapsulation for both security levels (128 and 256-bits):
 
 ```bash
-cargo run --release --bin demo_kem
-cargo run --release --bin demo_threshold_kem
+cargo run --release --bin ladon_demo
+```
+
+## Benchmarks and Tables
+
+The computational corresponding tables in the paper to the semi-honest version are Tables 2, 6, 9.
+
+### Reproduce Table 2 (computation)
+
+You should run:
+```
+cargo bench --bench encapsulation
+```
+and compare the `avg/encpas` with the first column of Table 2.
+
+### Reproduce Table 6 (computation)
+
+You should run:
+```
+cargo bench --bench kmstee
+```
+and compare the `sum` with the columns of Table 6 based on the parameter `t` for each security level.
+
+
+
+### Table 9 (computation)
+You should run:
+```
+cargo bench --bench keygen_sharing
+```
+and compare the `avg/op` with the columns of Table 9 based on the parameter `t` for each security level.
+
+
+### Table 8 (Communication)
+You should run:
+```
+cargo bench --bench net
 ```
