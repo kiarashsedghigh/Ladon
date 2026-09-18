@@ -27,7 +27,7 @@ The computational benchmark results corresponding to the semi-honest version are
 Table 5 for semi-honest reports the analytical communication cost and therefore does not correspond to any executable code.
 
 
-### Reproduce Table 3 (computation)
+### Table 3 
 
 You should run:
 ```
@@ -35,7 +35,7 @@ cargo bench --bench encapsulation
 ```
 and compare the `avg/encpas` with the first column of Table 3.
 
-### Reproduce Table 7 (computation)
+### Table 7
 
 You should run:
 ```
@@ -44,8 +44,7 @@ cargo bench --bench kmstee
 and compare the `total` column with the columns of Table 7 based on the parameter `t` for each security level.
 
 
-
-### Table 10 (computation)
+### Table 10
 You should run:
 ```
 cargo bench --bench keygen_sharing
