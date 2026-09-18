@@ -4,7 +4,7 @@ in the Key Management Service via a Threshold KEM
 
 ---
 
-## Introduction for SP27 Evaluator PC
+## Introduction for SP27 Evaluator PCs
 
 Ladon is implemented entirely in Rust and provides two variants: semi-honest and malicious security. In the paper, we report the performance results for these variants across several tables.
 

@@ -4,23 +4,28 @@
 
 Ladon requires **Rust nightly 1.94 or later** because it uses the unstable `generic_const_exprs` feature.
 
-Set the default Rust toolchain to nightly:
+Set the default Rust toolchain to the latest nightly version:
 
 ```bash
 rustup default nightly
 ```
 
+
 ## Full Demo
 
-Run the Ladon's demo where `(t, n) = (4, 9)` committee with a TEE (here a trusted system only) is used for performing a threshold decapsulation for both security levels (128 and 256-bits):
+Run Ladon's full demo using a (t, n) = (4, 9) committee and a TEE (implemented here as a trusted local system) to perform threshold decapsulation at both supported security levels: **128-bit** and **256-bit**. 
 
 ```bash
 cargo run --release --bin ladon_demo
 ```
 
+
 ## Benchmarks and Tables
 
-The computational corresponding tables in the paper to the semi-honest version are Tables 3, 7, 10.
+The computational benchmark results corresponding to the semi-honest version are reported in Tables 3, 7, and 10 of the paper.
+
+Table 5 for semi-honest reports the analytical communication cost and therefore does not correspond to any executable code.
+
 
 ### Reproduce Table 3 (computation)
 
@@ -36,7 +41,7 @@ You should run:
 ```
 cargo bench --bench kmstee
 ```
-and compare the `sum` with the columns of Table 10 based on the parameter `t` for each security level.
+and compare the `total` column with the columns of Table 7 based on the parameter `t` for each security level.
 
 
 
@@ -46,12 +51,3 @@ You should run:
 cargo bench --bench keygen_sharing
 ```
 and compare the `avg/op` with the columns of Table 10 based on the parameter `t` for each security level.
-
-
-### Table 8 (Communication, not for this variant)
-
-The following numbers for this benchmark are not in the paper. We have reported the communciation for the active variant in the paper. Check `active` folder for Table 8.
-
-```
-cargo bench --bench net
-```
