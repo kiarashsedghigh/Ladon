@@ -36,7 +36,7 @@ You should run:
 ```
 cargo bench --bench kmstee
 ```
-and compare the `sum` with the columns of Table 6 based on the parameter `t` for each security level.
+and compare the `total` column with the columns of Table 6 based on the parameter `t` for each security level.
 
 
 
