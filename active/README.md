@@ -1,4 +1,4 @@
-# Ladon - Semi-Honest
+# Ladon - Active
 
 ## Set the Toolchain
 

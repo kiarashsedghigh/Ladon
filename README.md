@@ -10,7 +10,15 @@ Ladon is implemented entirely in Rust and provides two variants: semi-honest and
 
 Each variant has a dedicated implementation directory in this project, and each directory includes a complete demo as well as benchmarking tools for reproducing the reported results.
 
-The project also includes an additional `param_analyze` directory, which uses SageMath to evaluate the security of the selected parameter sets. As this analysis falls outside the scope of the IEEE S&P artifact evaluation objectives, it is not included in the main evaluation workflow.
+
+## Software Requirements
+
+Ladon requires **Rust nightly 1.94 or later**. The latest version of Rust can be installed by following the instructions on the official Rust website:
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
 
 
 ## Evaluation 
