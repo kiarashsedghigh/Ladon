@@ -33,7 +33,7 @@ You should run:
 ```
 cargo bench --bench encapsulation
 ```
-and compare the `avg/encpas` with the first column of Table 3.
+and compare the `avg/encpas` with the first column of Table 3 for Ladon.
 
 ### Table 7
 
@@ -41,7 +41,7 @@ You should run:
 ```
 cargo bench --bench kmstee
 ```
-and compare the `total` column with the columns of Table 7 based on the parameter `t` for each security level.
+and compare the `total` column with the columns of Table 7 for Ladon based on the parameter `t` for each security level.
 
 
 ### Table 10
@@ -49,4 +49,4 @@ You should run:
 ```
 cargo bench --bench keygen_sharing
 ```
-and compare the `avg/op` with the columns of Table 10 based on the parameter `t` for each security level.
+and compare the `avg/op` with the columns of Table 10 for Ladon based on the parameter `t` for each security level.
