@@ -3,6 +3,11 @@
 in the Key Management Service via a Threshold KEM
 
 ---
+<p align="center">
+  <img src="ieeebadges-available.png" width="120" alt="Artifacts Available">
+  <img src="ieeebadges-functional.png" width="120" alt="Artifacts Functional">
+  <img src="ieeebadges-reproduced.png" width="120" alt="Results Reproduced">
+</p>
 
 ## Introduction for SP27 Evaluator PCs
 
